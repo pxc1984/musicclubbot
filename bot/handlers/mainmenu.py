@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Router
 from aiogram.types import User, CallbackQuery
 from aiogram_dialog import Dialog, Window, DialogManager
@@ -32,15 +34,18 @@ async def songs_getter(dialog_manager: DialogManager, **kwargs):
         songs = result.scalars().all()
 
     total_pages = max((len(songs) - 1) // page_size + 1, 1)
+
+    page %= total_pages
+
     start = page * page_size
     end = start + page_size
+
+    dialog_manager.dialog_data["total_pages"] = total_pages
 
     return {
         "songs": songs[start:end],
         "page": page + 1,
         "total_pages": total_pages,
-        "has_prev": page > 0,
-        "has_next": page < total_pages - 1,
     }
 
 
@@ -50,12 +55,17 @@ async def show_song(c: CallbackQuery, w: Button, m: DialogManager, item_id: str)
 
 
 async def next_page(c: CallbackQuery, b: Button, m: DialogManager):
-    m.dialog_data["page"] = m.dialog_data.get("page", 0) + 1
+    total_pages = m.dialog_data.get("total_pages", 1)
+    page = m.dialog_data.get("page", 0)
+    m.dialog_data["page"] = (page + 1) % total_pages
+    logging.debug("total_pages %d", total_pages)
     await m.show()
 
 
 async def prev_page(c: CallbackQuery, b: Button, m: DialogManager):
-    m.dialog_data["page"] = max(m.dialog_data.get("page", 0) - 1, 0)
+    total_pages = m.dialog_data.get("total_pages", 1)
+    page = m.dialog_data.get("page", 0)
+    m.dialog_data["page"] = (page - 1) % total_pages
     await m.show()
 
 
@@ -88,9 +98,9 @@ router.include_router(Dialog(
             ),
         ),
         Row(
-            Button(Const("<"), id="prev", on_click=prev_page, when="has_prev"),
+            Button(Const("<"), id="prev", on_click=prev_page),
             Button(Format("{page}/{total_pages}"), id="pagecounter", on_click=lambda c, b, m: c.answer("Мисклик")),
-            Button(Const(">"), id="next", on_click=next_page, when="has_next"),
+            Button(Const(">"), id="next", on_click=next_page),
         ),
         Button(Const("Добавить песню"), id="add_song", on_click=add_song),
         Button(Const("Назад"), id="Back", on_click=lambda c, b, m: m.switch_to(MainMenu.menu)),
