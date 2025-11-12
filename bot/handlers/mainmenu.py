@@ -12,6 +12,7 @@ from bot.models import Song
 from bot.services.database import get_db_session
 from bot.services.settings import settings
 from bot.states.addsong import AddSong
+from bot.states.editsong import EditSong
 from bot.states.mainmenu import MainMenu
 
 router = Router()
@@ -54,7 +55,7 @@ async def songs_getter(dialog_manager: DialogManager, **kwargs):
 async def show_song(
     c: CallbackQuery, w: Button, m: DialogManager, item_id: str
 ):
-    await c.answer(f"Selected song: {item_id}")
+    await m.start(EditSong.menu, data={"song_id": item_id})
 
 
 async def next_page(c: CallbackQuery, b: Button, m: DialogManager):
