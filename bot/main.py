@@ -19,7 +19,7 @@ from .services.settings import settings
 
 logger = logging.getLogger(__name__)
 
-HANDLERS_PACKAGE = "handlers"
+HANDLERS_PACKAGE = "bot.handlers"
 HANDLERS_PATH = Path(__file__).parent / "handlers"
 
 
@@ -27,6 +27,7 @@ def register_all_middlewares(dp: Dispatcher) -> None: ...
 
 
 def _iter_handler_modules() -> Iterable[ModuleType]:
+    logger.info("Handerls_path: %s", HANDLERS_PATH)
     for module in HANDLERS_PATH.rglob("*.py"):
         if module.name == "__init__.py":
             continue
