@@ -47,7 +47,7 @@ class SongParticipation(Base):
 
     id = Column(Integer, primary_key=True)
     song_id = Column(Integer, ForeignKey("songs.id"), nullable=False)
-    person_id = Column(Integer, ForeignKey("people.id"), nullable=False)
+    person_id = Column(BigInteger, ForeignKey("people.id"), nullable=False)
     role = Column(String(200), nullable=False)
 
     song = relationship("Song", back_populates="participations")
