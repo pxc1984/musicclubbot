@@ -25,7 +25,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-async def song_info_getter(dialog_manager: DialogManager, **kwargs) -> dict:
+async def song_info_getter(dialog_manager: DialogManager, event_from_user: User, **kwargs) -> dict:
     async with get_db_session() as session:
         result = await session.execute(
             select(Song)
@@ -34,6 +34,7 @@ async def song_info_getter(dialog_manager: DialogManager, **kwargs) -> dict:
         )
         song = result.scalar_one_or_none()
     return {
+        "is_admin": event_from_user.id in settings.ADMIN_IDS,
         "song_id": dialog_manager.start_data["song_id"],
         "song_title": song.title,
         "song_link": song.link,
@@ -126,7 +127,7 @@ async def on_join(
 router.include_router(
     Dialog(
         Window(
-            Format("ID: {song_id}\nНазвание: {song_title}"),
+            Format("ID: {song_id}\nНазвание: <a href=\"{song_link}\">{song_title}</a>"),
             Url(Const("Ссылка"), url=Format("{song_link}"), id="song_link"),
             Button(
                 Const("Роли и присоединиться"),
