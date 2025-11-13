@@ -25,6 +25,11 @@ from bot.states.participations import MyParticipations
 
 router = Router()
 
+async def admin_panel_getter(dialog_manager: DialogManager, event_from_user: User, **kwargs):
+    if event_from_user.id not in settings.ADMIN_IDS:
+        await dialog_manager.done()
+    return {}
+
 router.include_router(
     Dialog(
         Window(
@@ -37,6 +42,7 @@ router.include_router(
                 ),
             ),
             Cancel(Const("Назад")),
+            getter=admin_panel_getter,
             state=AdminPanel.menu,
         )
     )
