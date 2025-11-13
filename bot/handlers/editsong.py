@@ -25,7 +25,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-async def song_info_getter(dialog_manager: DialogManager, event_from_user: User, **kwargs) -> dict:
+async def song_info_getter(dialog_manager: DialogManager, **kwargs) -> dict:
     async with get_db_session() as session:
         result = await session.execute(
             select(Song)
@@ -34,7 +34,7 @@ async def song_info_getter(dialog_manager: DialogManager, event_from_user: User,
         )
         song = result.scalar_one_or_none()
     return {
-        "is_admin": event_from_user.id in settings.ADMIN_IDS,
+        "is_admin": dialog_manager.event.from_user.id in settings.ADMIN_IDS,
         "song_id": dialog_manager.start_data["song_id"],
         "song_title": song.title,
         "song_link": song.link,
