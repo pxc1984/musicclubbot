@@ -68,6 +68,7 @@ router.include_router(
         Window(
             Const("Сделать объявление: отправь мне сообщение и я разошлю его всем кого знаю"),
             MessageInput(func=on_announcement),
+            Cancel(Const("Назад")),
             getter=admin_panel_getter,
             state=AdminPanel.announcement,
         )
