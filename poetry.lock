@@ -1874,4 +1874,4 @@ dev = ["coverage", "ruff"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "27a9ebcf66c2bb6f874dac58d8ee2d4d9d80f5ed1011e712739afc12cb0cda37"
+content-hash = "c14907f8bb15fb54375649376b55e8c78877a351f2c9ee5efb7245a7c2474665"
