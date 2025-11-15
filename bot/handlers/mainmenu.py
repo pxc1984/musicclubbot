@@ -106,6 +106,7 @@ async def on_pending_role_selected(
 ):
     async with get_db_session() as session:
         pending_role: PendingRole = (await session.execute(select(PendingRole).where(PendingRole.id == int(item_id)))).scalar_one_or_none()
+        await session.delete(pending_role)
         session.add(SongParticipation(
             person_id=callback.from_user.id,
             song_id=pending_role.song_id,
