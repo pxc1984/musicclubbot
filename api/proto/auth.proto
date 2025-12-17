@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package api.auth;
+
+service Auth { rpc LoginTg(TgLogin) returns (LoginResponse); }
+
+message TgLogin { uint64 tg_id = 1; }
+
+// Contains JWT token
+message LoginResponse { string token = 1; }
+
+service User { rpc IsAdmin(TgLogin) returns (IsAdminResponse); }
+
+message IsAdminResponse { bool is_admin = 1; }
