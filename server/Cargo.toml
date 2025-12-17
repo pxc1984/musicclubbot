@@ -12,13 +12,20 @@ prost = "0.14"
 tonic = { version = "0.14.2" }
 tonic-prost = "0.14.2"
 tonic-mock = "0.4.0"
-chrono = "0.4.42"
+chrono = { version = "0.4.42", features = ["serde", "clock"] }
 log = "0.4.29"
 env_logger = "0.11.8"
 tonic-middleware = "0.4.0"
 dotenvy = "0.15.7"
 prost-types = "0.14.1"
-sqlx = { version = "0.8.6", features = ["chrono", "macros", "postgres", "runtime-tokio"] }
+sqlx = { version = "0.8.6", features = [
+	"chrono",
+	"macros",
+	"postgres",
+	"runtime-tokio",
+] }
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+serde = { version = "1.0.228", features = ["derive"] }
 
 [build-dependencies]
 tonic-prost-build = "0.14.2"

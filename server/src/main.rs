@@ -1,5 +1,7 @@
 mod grpc;
 
+use std::sync::Arc;
+
 use api::pb::{
     auth_service_server, concert_service_server, participation_service_server, song_service_server,
 };
@@ -22,10 +24,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
+    let auth = Arc::new(AuthServer::new(&secret_key_from_env()));
+
     log::info!("Server is running at {addr}");
     Server::builder()
-        .add_service(auth_service_server::AuthServiceServer::new(
-            AuthServer::default(),
+        .add_service(auth_service_server::AuthServiceServer::from_arc(
+            Arc::clone(&auth),
         ))
         .add_service(song_service_server::SongServiceServer::new(
             SongServer::new(pool.clone()),
@@ -42,6 +46,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
+}
+
+const DEFAULT_SECRET_KEY: &[u8] = b"key";
+
+fn secret_key_from_env() -> Vec<u8> {
+    match std::env::var("SECRET_KEY") {
+        Ok(k) => k.into(),
+        Err(_) => DEFAULT_SECRET_KEY.into(),
+    }
 }
 
 fn database_url_from_env() -> Result<String, Box<dyn std::error::Error>> {
