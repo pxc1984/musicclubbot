@@ -66,7 +66,6 @@ impl AuthServer {
         };
         encode(&Header::default(), &claims, &self.keys.encoding).expect("jwt encode failed")
     }
-
 }
 
 #[tonic::async_trait]
@@ -96,10 +95,8 @@ impl AuthInterceptor {
     fn decode(&self, token: &str) -> Result<Claims, Status> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
-        let data =
-            decode::<Claims>(token, &self.keys.decoding, &validation).map_err(|_| {
-                Status::unauthenticated("invalid token")
-            })?;
+        let data = decode::<Claims>(token, &self.keys.decoding, &validation)
+            .map_err(|_| Status::unauthenticated("invalid token"))?;
         Ok(data.claims)
     }
 }
@@ -130,9 +127,9 @@ impl RequestInterceptor for AuthInterceptor {
 #[cfg(test)]
 mod tests {
     use super::AuthServer;
-    use api::pb::auth_service_server::AuthService;
     use api::pb::TgLogin;
     use api::pb::auth_service_client::AuthServiceClient;
+    use api::pb::auth_service_server::AuthService;
     use api::pb::auth_service_server::AuthServiceServer;
     use jsonwebtoken::{DecodingKey, Validation, decode};
     use std::collections::HashSet;
@@ -163,9 +160,13 @@ mod tests {
         assert!(decoded.claims.is_admin);
     }
 
-    async fn start_server(server: AuthServer) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    async fn start_server(server: AuthServer) -> Option<(SocketAddr, tokio::task::JoinHandle<()>)> {
         let addr: SocketAddr = "127.0.0.1:0".parse().expect("addr");
-        let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
+        let listener = match tokio::net::TcpListener::bind(&addr).await {
+            Ok(listener) => listener,
+            Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => return None,
+            Err(err) => panic!("bind failed: {err}"),
+        };
         let addr = listener.local_addr().expect("local addr");
 
         let handle = tokio::spawn(async move {
@@ -177,21 +178,22 @@ mod tests {
         });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        (addr, handle)
+        Some((addr, handle))
     }
 
     async fn create_client(addr: SocketAddr) -> AuthServiceClient<Channel> {
         let endpoint = format!("http://{}:{}", addr.ip(), addr.port());
-        AuthServiceClient::connect(endpoint)
-            .await
-            .expect("connect")
+        AuthServiceClient::connect(endpoint).await.expect("connect")
     }
 
     #[tokio::test]
     async fn e2e_auth_login() {
         let admins = HashSet::new();
         let server = AuthServer::new(b"secret", admins, Duration::from_secs(3600));
-        let (addr, _handle) = start_server(server).await;
+        let Some((addr, _handle)) = start_server(server).await else {
+            eprintln!("skipping e2e_auth_login: tcp bind not permitted");
+            return;
+        };
         let mut client = create_client(addr).await;
 
         let response = client

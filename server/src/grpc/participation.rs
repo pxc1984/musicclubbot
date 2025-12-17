@@ -7,8 +7,8 @@ use api::pb::{
     UpdateParticipationRequest,
 };
 use async_trait::async_trait;
-use sqlx::PgPool;
 use sqlx::FromRow;
+use sqlx::PgPool;
 use tonic::{Request, Response, Result, Status};
 
 #[derive(Clone)]
@@ -170,6 +170,7 @@ impl ParticipationServer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_store(store: Arc<dyn ParticipationStore>) -> Self {
         Self { store }
     }
@@ -344,9 +345,7 @@ fn apply_participation_update_mask(
     mask: Option<prost_types::FieldMask>,
 ) -> Result<Participation, Status> {
     let mut updated = participation.clone();
-    let paths = mask
-        .map(|mask| mask.paths)
-        .unwrap_or_else(Vec::new);
+    let paths = mask.map(|mask| mask.paths).unwrap_or_else(Vec::new);
 
     if paths.is_empty() {
         return Ok(updated);
@@ -358,7 +357,7 @@ fn apply_participation_update_mask(
             "tg_id" | "song_id" => {
                 return Err(Status::invalid_argument(
                     "updating tg_id or song_id is not supported",
-                ))
+                ));
             }
             _ => return Err(Status::invalid_argument("unsupported update_mask path")),
         }
@@ -377,8 +376,8 @@ fn map_store_error(err: StoreError) -> Status {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_participation_name, validate_participation, ParticipationRecord, ParticipationServer,
-        ParticipationStore, StoreError,
+        ParticipationRecord, ParticipationServer, ParticipationStore, StoreError,
+        parse_participation_name, validate_participation,
     };
     use api::pb::Participation;
     use api::pb::participation_service_client::ParticipationServiceClient;
@@ -388,10 +387,10 @@ mod tests {
         ListParticipationsRequest, UpdateParticipationRequest,
     };
     use async_trait::async_trait;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
     use std::collections::HashMap;
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use sqlx::{PgPool, postgres::PgPoolOptions};
     use tokio::sync::Mutex;
     use tokio_stream::wrappers::TcpListenerStream;
     use tonic::transport::Channel;
@@ -434,13 +433,19 @@ mod tests {
 
     #[async_trait]
     impl ParticipationStore for MockParticipationStore {
-        async fn create(&self, record: ParticipationRecord) -> Result<ParticipationRecord, StoreError> {
+        async fn create(
+            &self,
+            record: ParticipationRecord,
+        ) -> Result<ParticipationRecord, StoreError> {
             let key = (record.song_id, record.person_id, record.role.clone());
             self.data.lock().await.insert(key, record.clone());
             Ok(record)
         }
 
-        async fn get(&self, record: ParticipationRecord) -> Result<ParticipationRecord, StoreError> {
+        async fn get(
+            &self,
+            record: ParticipationRecord,
+        ) -> Result<ParticipationRecord, StoreError> {
             let key = (record.song_id, record.person_id, record.role.clone());
             self.data
                 .lock()
@@ -488,9 +493,13 @@ mod tests {
 
     async fn start_server(
         store: Arc<dyn ParticipationStore>,
-    ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    ) -> Option<(SocketAddr, tokio::task::JoinHandle<()>)> {
         let addr: SocketAddr = "127.0.0.1:0".parse().expect("addr");
-        let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
+        let listener = match tokio::net::TcpListener::bind(&addr).await {
+            Ok(listener) => listener,
+            Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => return None,
+            Err(err) => panic!("bind failed: {err}"),
+        };
         let addr = listener.local_addr().expect("local addr");
         let service = ParticipationServiceServer::new(ParticipationServer::with_store(store));
 
@@ -503,7 +512,7 @@ mod tests {
         });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        (addr, handle)
+        Some((addr, handle))
     }
 
     async fn create_client(addr: SocketAddr) -> ParticipationServiceClient<Channel> {
@@ -516,7 +525,10 @@ mod tests {
     #[tokio::test]
     async fn e2e_participation_crud() {
         let store = Arc::new(MockParticipationStore::new());
-        let (addr, _handle) = start_server(store).await;
+        let Some((addr, _handle)) = start_server(store).await else {
+            eprintln!("skipping e2e_participation_crud: tcp bind not permitted");
+            return;
+        };
         let mut client = create_client(addr).await;
 
         let create = CreateParticipationRequest {

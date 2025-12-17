@@ -1,5 +1,6 @@
 use std::collections::HashSet;
-
+use tonic::body::Body;
+use tonic::codegen::http::{Request, Response};
 use tonic_middleware::{Middleware, ServiceBound};
 
 #[derive(Clone, Debug)]
@@ -21,15 +22,17 @@ where
 {
     async fn call(
         &self,
-        req: tonic::codegen::http::Request<tonic::body::Body>,
+        req: Request<Body>,
         mut service: S,
-    ) -> Result<tonic::codegen::http::Response<tonic::body::Body>, S::Error> {
+    ) -> Result<Response<Body>, S::Error> {
         if req.uri().path().ends_with("/CreateConcert") {
+            println!("{:?}", req.headers());
             let user_id = req
                 .headers()
                 .get("x-user-id")
                 .and_then(|value| value.to_str().ok())
                 .and_then(|value| value.parse::<u64>().ok());
+            println!("{:?}", user_id);
 
             if user_id.is_none()
                 || !self.admin_ids.contains(&user_id.expect("checked"))

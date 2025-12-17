@@ -6,7 +6,7 @@ use api::pb::{
 use env_logger::Env;
 use sqlx::postgres::PgPoolOptions;
 use tonic::{Result, transport::Server};
-use tonic_middleware::InterceptorFor;
+use tonic_middleware::{MiddlewareLayer, RequestInterceptorLayer};
 
 use crate::grpc::{
     auth::{AuthInterceptor, AuthServer},
@@ -22,7 +22,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let addr = "[::1]:6969".parse()?;
     let database_url = database_url_from_env()?;
-    let pool = PgPoolOptions::new().max_connections(8).connect(&database_url).await?;
+    let pool = PgPoolOptions::new()
+        .max_connections(8)
+        .connect(&database_url)
+        .await?;
     let admin_ids = load_admin_ids()?;
     let jwt_secret = std::env::var("JWT_SECRET")
         .or_else(|_| std::env::var("BOT_TOKEN"))
@@ -36,20 +39,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Server is running at {addr}");
     Server::builder()
-        .add_service(auth_service_server::AuthServiceServer::new(AuthServer::new(
-            jwt_secret.as_bytes(),
-            admin_ids,
-            std::time::Duration::from_secs(jwt_ttl_seconds),
-        )))
+        .layer(RequestInterceptorLayer::new(auth_interceptor))
+        .layer(MiddlewareLayer::new(admin_middleware))
+        .add_service(auth_service_server::AuthServiceServer::new(
+            AuthServer::new(
+                jwt_secret.as_bytes(),
+                admin_ids,
+                std::time::Duration::from_secs(jwt_ttl_seconds),
+            ),
+        ))
         .add_service(song_service_server::SongServiceServer::new(
             SongServer::new(pool.clone()),
         ))
-        .add_service(tonic_middleware::MiddlewareFor::new(
-            InterceptorFor::new(
-                concert_service_server::ConcertServiceServer::new(ConcertServer::new(pool.clone())),
-                auth_interceptor,
-            ),
-            admin_middleware,
+        .add_service(concert_service_server::ConcertServiceServer::new(
+            ConcertServer::new(pool.clone()),
         ))
         .add_service(
             participation_service_server::ParticipationServiceServer::new(

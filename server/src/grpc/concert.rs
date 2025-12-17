@@ -8,8 +8,8 @@ use api::pb::{
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use prost_types::Timestamp;
-use sqlx::PgPool;
 use sqlx::FromRow;
+use sqlx::PgPool;
 use tonic::{Request, Response, Result, Status};
 
 #[derive(Clone)]
@@ -165,6 +165,7 @@ impl ConcertServer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_store(store: Arc<dyn ConcertStore>) -> Self {
         Self { store }
     }
@@ -176,9 +177,10 @@ impl ConcertService for ConcertServer {
         &self,
         request: Request<CreateConcertRequest>,
     ) -> Result<Response<Concert>, Status> {
-        let concert = request.into_inner().concert.ok_or_else(|| {
-            Status::invalid_argument("create_concert requires concert payload")
-        })?;
+        let concert = request
+            .into_inner()
+            .concert
+            .ok_or_else(|| Status::invalid_argument("create_concert requires concert payload"))?;
         if concert.name.trim().is_empty() {
             return Err(Status::invalid_argument("concert name is required"));
         }
@@ -228,11 +230,7 @@ impl ConcertService for ConcertServer {
             return Err(Status::invalid_argument("concert id is required"));
         }
 
-        let existing = self
-            .store
-            .get(concert.id)
-            .await
-            .map_err(map_store_error)?;
+        let existing = self.store.get(concert.id).await.map_err(map_store_error)?;
         let updated = apply_concert_update_mask(&existing, &concert, request.update_mask)?;
         if updated.name.trim().is_empty() {
             return Err(Status::invalid_argument("concert name is required"));
@@ -253,7 +251,10 @@ impl ConcertService for ConcertServer {
     ) -> Result<Response<()>, Status> {
         let id = parse_id(&request.into_inner().name)?;
 
-        self.store.delete(id as u64).await.map_err(map_store_error)?;
+        self.store
+            .delete(id as u64)
+            .await
+            .map_err(map_store_error)?;
         Ok(Response::new(()))
     }
 }
@@ -312,9 +313,7 @@ fn apply_concert_update_mask(
     mask: Option<prost_types::FieldMask>,
 ) -> Result<Concert, Status> {
     let mut updated = record_to_concert(existing.clone());
-    let paths = mask
-        .map(|mask| mask.paths)
-        .unwrap_or_else(Vec::new);
+    let paths = mask.map(|mask| mask.paths).unwrap_or_else(Vec::new);
 
     if paths.is_empty() {
         updated.name = incoming.name.clone();
@@ -343,8 +342,8 @@ fn map_store_error(err: StoreError) -> Status {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_concert_update_mask, date_from_timestamp, record_to_concert, ConcertRecord,
-        ConcertServer, ConcertStore, StoreError,
+        ConcertRecord, ConcertServer, ConcertStore, StoreError, apply_concert_update_mask,
+        date_from_timestamp, record_to_concert,
     };
     use api::pb::Concert;
     use api::pb::auth_service_client::AuthServiceClient;
@@ -357,16 +356,16 @@ mod tests {
     use async_trait::async_trait;
     use chrono::NaiveDate;
     use prost_types::Timestamp;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
     use std::collections::{HashMap, HashSet};
     use std::net::SocketAddr;
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
-    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use tokio::sync::Mutex;
     use tokio_stream::wrappers::TcpListenerStream;
     use tonic::transport::Channel;
     use tonic::{Request, transport::Server};
-    use tonic_middleware::InterceptorFor;
+    use tonic_middleware::{MiddlewareLayer, RequestInterceptorLayer};
 
     use crate::grpc::auth::{AuthInterceptor, AuthServer};
     use crate::grpc::middleware::AdminOnlyMiddleware;
@@ -468,25 +467,29 @@ mod tests {
     async fn start_server(
         store: Arc<dyn ConcertStore>,
         admin_ids: HashSet<u64>,
-    ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    ) -> Option<(SocketAddr, tokio::task::JoinHandle<()>)> {
         let addr: SocketAddr = "127.0.0.1:0".parse().expect("addr");
-        let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
+        let listener = match tokio::net::TcpListener::bind(&addr).await {
+            Ok(listener) => listener,
+            Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => return None,
+            Err(err) => panic!("bind failed: {err}"),
+        };
         let addr = listener.local_addr().expect("local addr");
         let secret = b"secret";
-        let auth = AuthServer::new(secret, admin_ids.clone(), std::time::Duration::from_secs(3600));
+        let auth = AuthServer::new(
+            secret,
+            admin_ids.clone(),
+            std::time::Duration::from_secs(3600),
+        );
         let interceptor = AuthInterceptor::new(secret);
         let admin_middleware = AdminOnlyMiddleware::new(admin_ids);
 
-        let concert_service = tonic_middleware::MiddlewareFor::new(
-            InterceptorFor::new(
-                ConcertServiceServer::new(ConcertServer::with_store(store)),
-                interceptor,
-            ),
-            admin_middleware,
-        );
+        let concert_service = ConcertServiceServer::new(ConcertServer::with_store(store));
 
         let handle = tokio::spawn(async move {
             Server::builder()
+                .layer(RequestInterceptorLayer::new(interceptor))
+                .layer(MiddlewareLayer::new(admin_middleware))
                 .add_service(AuthServiceServer::new(auth))
                 .add_service(concert_service)
                 .serve_with_incoming(TcpListenerStream::new(listener))
@@ -495,7 +498,7 @@ mod tests {
         });
 
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        (addr, handle)
+        Some((addr, handle))
     }
 
     async fn create_concert_client(addr: SocketAddr) -> ConcertServiceClient<Channel> {
@@ -507,16 +510,17 @@ mod tests {
 
     async fn create_auth_client(addr: SocketAddr) -> AuthServiceClient<Channel> {
         let endpoint = format!("http://{}:{}", addr.ip(), addr.port());
-        AuthServiceClient::connect(endpoint)
-            .await
-            .expect("connect")
+        AuthServiceClient::connect(endpoint).await.expect("connect")
     }
 
     #[tokio::test]
     async fn e2e_concert_crud_with_admin_guard() {
         let store = Arc::new(MockConcertStore::new());
         let admin_ids = HashSet::from([42_u64]);
-        let (addr, _handle) = start_server(store, admin_ids).await;
+        let Some((addr, _handle)) = start_server(store, admin_ids).await else {
+            eprintln!("skipping e2e_concert_crud_with_admin_guard: tcp bind not permitted");
+            return;
+        };
 
         let mut auth_client = create_auth_client(addr).await;
         let admin_token = auth_client
@@ -542,8 +546,10 @@ mod tests {
                 date: None,
             }),
         });
-        req.metadata_mut()
-            .insert("authorization", format!("Bearer {}", user_token).parse().unwrap());
+        req.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", user_token).parse().unwrap(),
+        );
         let err = client.create_concert(req).await.unwrap_err();
         assert_eq!(err.code(), tonic::Code::PermissionDenied);
 
@@ -556,9 +562,10 @@ mod tests {
                 date: None,
             }),
         });
-        admin_req
-            .metadata_mut()
-            .insert("authorization", format!("Bearer {}", admin_token).parse().unwrap());
+        admin_req.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", admin_token).parse().unwrap(),
+        );
         let created = client
             .create_concert(admin_req)
             .await
