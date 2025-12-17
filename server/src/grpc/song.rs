@@ -1,15 +1,18 @@
+use std::sync::Arc;
+
 use api::pb::song_service_server::SongService;
 use api::pb::{
     CreateSongRequest, DeleteSongRequest, GetSongRequest, ListSongsRequest, ListSongsResponse,
     Song, UpdateSongRequest,
 };
-use sqlx::PgPool;
+use async_trait::async_trait;
 use sqlx::FromRow;
+use sqlx::PgPool;
 use tonic::{Request, Response, Result, Status};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SongServer {
-    pool: PgPool,
+    store: Arc<dyn SongStore>,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -20,26 +23,43 @@ struct SongRow {
     link: Option<String>,
 }
 
-impl SongServer {
-    pub fn new(pool: PgPool) -> Self {
+#[derive(Clone, Debug)]
+pub struct SongRecord {
+    pub id: u64,
+    pub title: String,
+    pub description: Option<String>,
+    pub link: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum StoreError {
+    NotFound,
+    Database(String),
+}
+
+#[async_trait]
+pub trait SongStore: Send + Sync {
+    async fn create(&self, song: SongRecord) -> Result<SongRecord, StoreError>;
+    async fn get(&self, id: u64) -> Result<SongRecord, StoreError>;
+    async fn list(&self, limit: i64) -> Result<Vec<SongRecord>, StoreError>;
+    async fn update(&self, song: SongRecord) -> Result<SongRecord, StoreError>;
+    async fn delete(&self, id: u64) -> Result<(), StoreError>;
+}
+
+#[derive(Debug)]
+struct PostgresSongStore {
+    pool: PgPool,
+}
+
+impl PostgresSongStore {
+    fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 }
 
-#[tonic::async_trait]
-impl SongService for SongServer {
-    async fn create_song(
-        &self,
-        request: Request<CreateSongRequest>,
-    ) -> Result<Response<Song>, Status> {
-        let song = request.into_inner().song.ok_or_else(|| {
-            Status::invalid_argument("create_song requires song payload")
-        })?;
-
-        if song.title.trim().is_empty() {
-            return Err(Status::invalid_argument("song title is required"));
-        }
-
+#[async_trait]
+impl SongStore for PostgresSongStore {
+    async fn create(&self, song: SongRecord) -> Result<SongRecord, StoreError> {
         let row = sqlx::query_as::<_, SongRow>(
             r#"
             INSERT INTO songs (title, description, link)
@@ -48,18 +68,16 @@ impl SongService for SongServer {
             "#,
         )
         .bind(song.title)
-        .bind(empty_to_none(song.description))
-        .bind(empty_to_none(song.link))
+        .bind(song.description)
+        .bind(song.link)
         .fetch_one(&self.pool)
         .await
-        .map_err(map_db_error)?;
+        .map_err(|err| StoreError::Database(err.to_string()))?;
 
-        Ok(Response::new(row_to_song(row)))
+        Ok(song_from_row(row))
     }
 
-    async fn get_song(&self, request: Request<GetSongRequest>) -> Result<Response<Song>, Status> {
-        let id = parse_id(&request.into_inner().name)?;
-
+    async fn get(&self, id: u64) -> Result<SongRecord, StoreError> {
         let row = sqlx::query_as::<_, SongRow>(
             r#"
             SELECT id, title, description, link
@@ -67,21 +85,16 @@ impl SongService for SongServer {
             WHERE id = $1
             "#,
         )
-        .bind(id)
+        .bind(id as i64)
         .fetch_optional(&self.pool)
         .await
-        .map_err(map_db_error)?
-        .ok_or_else(|| Status::not_found("song not found"))?;
+        .map_err(|err| StoreError::Database(err.to_string()))?
+        .ok_or(StoreError::NotFound)?;
 
-        Ok(Response::new(row_to_song(row)))
+        Ok(song_from_row(row))
     }
 
-    async fn list_songs(
-        &self,
-        request: Request<ListSongsRequest>,
-    ) -> Result<Response<ListSongsResponse>, Status> {
-        let limit = sanitize_page_size(request.into_inner().page_size);
-
+    async fn list(&self, limit: i64) -> Result<Vec<SongRecord>, StoreError> {
         let rows = sqlx::query_as::<_, SongRow>(
             r#"
             SELECT id, title, description, link
@@ -93,9 +106,99 @@ impl SongService for SongServer {
         .bind(limit)
         .fetch_all(&self.pool)
         .await
-        .map_err(map_db_error)?;
+        .map_err(|err| StoreError::Database(err.to_string()))?;
 
-        let songs = rows.into_iter().map(row_to_song).collect();
+        Ok(rows.into_iter().map(song_from_row).collect())
+    }
+
+    async fn update(&self, song: SongRecord) -> Result<SongRecord, StoreError> {
+        let row = sqlx::query_as::<_, SongRow>(
+            r#"
+            UPDATE songs
+            SET title = $1, description = $2, link = $3
+            WHERE id = $4
+            RETURNING id, title, description, link
+            "#,
+        )
+        .bind(song.title)
+        .bind(song.description)
+        .bind(song.link)
+        .bind(song.id as i64)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|err| StoreError::Database(err.to_string()))?
+        .ok_or(StoreError::NotFound)?;
+
+        Ok(song_from_row(row))
+    }
+
+    async fn delete(&self, id: u64) -> Result<(), StoreError> {
+        let result = sqlx::query("DELETE FROM songs WHERE id = $1")
+            .bind(id as i64)
+            .execute(&self.pool)
+            .await
+            .map_err(|err| StoreError::Database(err.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(StoreError::NotFound);
+        }
+
+        Ok(())
+    }
+}
+
+impl SongServer {
+    pub fn new(pool: PgPool) -> Self {
+        Self {
+            store: Arc::new(PostgresSongStore::new(pool)),
+        }
+    }
+
+    pub fn with_store(store: Arc<dyn SongStore>) -> Self {
+        Self { store }
+    }
+}
+
+#[tonic::async_trait]
+impl SongService for SongServer {
+    async fn create_song(
+        &self,
+        request: Request<CreateSongRequest>,
+    ) -> Result<Response<Song>, Status> {
+        let song = request
+            .into_inner()
+            .song
+            .ok_or_else(|| Status::invalid_argument("create_song requires song payload"))?;
+
+        if song.title.trim().is_empty() {
+            return Err(Status::invalid_argument("song title is required"));
+        }
+
+        let record = SongRecord {
+            id: 0,
+            title: song.title,
+            description: empty_to_none(song.description),
+            link: empty_to_none(song.link),
+        };
+        let record = self.store.create(record).await.map_err(map_store_error)?;
+        Ok(Response::new(record_to_song(record)))
+    }
+
+    async fn get_song(&self, request: Request<GetSongRequest>) -> Result<Response<Song>, Status> {
+        let id = parse_id(&request.into_inner().name)?;
+
+        let record = self.store.get(id as u64).await.map_err(map_store_error)?;
+        Ok(Response::new(record_to_song(record)))
+    }
+
+    async fn list_songs(
+        &self,
+        request: Request<ListSongsRequest>,
+    ) -> Result<Response<ListSongsResponse>, Status> {
+        let limit = sanitize_page_size(request.into_inner().page_size);
+
+        let rows = self.store.list(limit).await.map_err(map_store_error)?;
+        let songs = rows.into_iter().map(record_to_song).collect();
         Ok(Response::new(ListSongsResponse {
             songs,
             next_page_token: String::new(),
@@ -114,41 +217,20 @@ impl SongService for SongServer {
             return Err(Status::invalid_argument("song id is required"));
         }
 
-        let existing = sqlx::query_as::<_, SongRow>(
-            r#"
-            SELECT id, title, description, link
-            FROM songs
-            WHERE id = $1
-            "#,
-        )
-        .bind(song.id as i64)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(map_db_error)?
-        .ok_or_else(|| Status::not_found("song not found"))?;
-
+        let existing = self.store.get(song.id).await.map_err(map_store_error)?;
         let updated = apply_song_update_mask(&existing, &song, request.update_mask)?;
         if updated.title.trim().is_empty() {
             return Err(Status::invalid_argument("song title is required"));
         }
 
-        let row = sqlx::query_as::<_, SongRow>(
-            r#"
-            UPDATE songs
-            SET title = $1, description = $2, link = $3
-            WHERE id = $4
-            RETURNING id, title, description, link
-            "#,
-        )
-        .bind(updated.title)
-        .bind(empty_to_none(updated.description))
-        .bind(empty_to_none(updated.link))
-        .bind(song.id as i64)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(map_db_error)?;
-
-        Ok(Response::new(row_to_song(row)))
+        let record = SongRecord {
+            id: song.id,
+            title: updated.title,
+            description: empty_to_none(updated.description),
+            link: empty_to_none(updated.link),
+        };
+        let record = self.store.update(record).await.map_err(map_store_error)?;
+        Ok(Response::new(record_to_song(record)))
     }
 
     async fn delete_song(
@@ -157,16 +239,10 @@ impl SongService for SongServer {
     ) -> Result<Response<()>, Status> {
         let id = parse_id(&request.into_inner().name)?;
 
-        let result = sqlx::query("DELETE FROM songs WHERE id = $1")
-            .bind(id)
-            .execute(&self.pool)
+        self.store
+            .delete(id as u64)
             .await
-            .map_err(map_db_error)?;
-
-        if result.rows_affected() == 0 {
-            return Err(Status::not_found("song not found"));
-        }
-
+            .map_err(map_store_error)?;
         Ok(Response::new(()))
     }
 }
@@ -198,25 +274,32 @@ fn empty_to_none(value: String) -> Option<String> {
     }
 }
 
-fn row_to_song(row: SongRow) -> Song {
-    Song {
+fn song_from_row(row: SongRow) -> SongRecord {
+    SongRecord {
         id: row.id as u64,
         title: row.title,
-        description: row.description.unwrap_or_default(),
-        link: row.link.unwrap_or_default(),
+        description: row.description,
+        link: row.link,
+    }
+}
+
+fn record_to_song(record: SongRecord) -> Song {
+    Song {
+        id: record.id,
+        title: record.title,
+        description: record.description.unwrap_or_default(),
+        link: record.link.unwrap_or_default(),
     }
 }
 
 fn apply_song_update_mask(
-    existing: &SongRow,
+    existing: &SongRecord,
     incoming: &Song,
     mask: Option<prost_types::FieldMask>,
 ) -> Result<Song, Status> {
-    let mut updated = row_to_song(existing.clone());
+    let mut updated = record_to_song(existing.clone());
 
-    let paths = mask
-        .map(|mask| mask.paths)
-        .unwrap_or_else(Vec::new);
+    let paths = mask.map(|mask| mask.paths).unwrap_or_else(Vec::new);
 
     if paths.is_empty() {
         updated.title = incoming.title.clone();
@@ -237,14 +320,35 @@ fn apply_song_update_mask(
     Ok(updated)
 }
 
-fn map_db_error(err: sqlx::Error) -> Status {
-    Status::internal(format!("database error: {err}"))
+fn map_store_error(err: StoreError) -> Status {
+    match err {
+        StoreError::NotFound => Status::not_found("song not found"),
+        StoreError::Database(message) => Status::internal(format!("database error: {message}")),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_song_update_mask, parse_id, row_to_song, SongRow};
+    use super::{
+        SongRecord, SongRow, SongServer, SongStore, StoreError, apply_song_update_mask, parse_id,
+        record_to_song, song_from_row,
+    };
     use api::pb::Song;
+    use api::pb::song_service_client::SongServiceClient;
+    use api::pb::song_service_server::SongServiceServer;
+    use api::pb::{
+        CreateSongRequest, DeleteSongRequest, GetSongRequest, ListSongsRequest, UpdateSongRequest,
+    };
+    use async_trait::async_trait;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use std::collections::HashMap;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use tokio::sync::Mutex;
+    use tokio_stream::wrappers::TcpListenerStream;
+    use tonic::transport::Channel;
+    use tonic::{Request, transport::Server};
 
     #[test]
     fn parse_id_rejects_invalid_values() {
@@ -255,7 +359,7 @@ mod tests {
 
     #[test]
     fn update_mask_updates_selected_fields() {
-        let existing = SongRow {
+        let existing = SongRecord {
             id: 1,
             title: "Old".to_string(),
             description: Some("Old desc".to_string()),
@@ -285,8 +389,159 @@ mod tests {
             description: None,
             link: None,
         };
-        let song = row_to_song(row);
+        let song = record_to_song(song_from_row(row));
         assert_eq!(song.description, "");
         assert_eq!(song.link, "");
+    }
+
+    #[derive(Debug)]
+    struct MockSongStore {
+        data: Mutex<HashMap<u64, SongRecord>>,
+        next_id: AtomicU64,
+        _pool: PgPool,
+    }
+
+    impl MockSongStore {
+        fn new() -> Self {
+            Self {
+                data: Mutex::new(HashMap::new()),
+                next_id: AtomicU64::new(1),
+                _pool: PgPoolOptions::new()
+                    .connect_lazy("postgres://postgres:postgres@localhost/postgres")
+                    .expect("stub pool"),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl SongStore for MockSongStore {
+        async fn create(&self, mut song: SongRecord) -> Result<SongRecord, StoreError> {
+            let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+            song.id = id;
+            self.data.lock().await.insert(id, song.clone());
+            Ok(song)
+        }
+
+        async fn get(&self, id: u64) -> Result<SongRecord, StoreError> {
+            self.data
+                .lock()
+                .await
+                .get(&id)
+                .cloned()
+                .ok_or(StoreError::NotFound)
+        }
+
+        async fn list(&self, limit: i64) -> Result<Vec<SongRecord>, StoreError> {
+            let mut values: Vec<_> = self.data.lock().await.values().cloned().collect();
+            values.sort_by_key(|song| song.id);
+            values.truncate(limit as usize);
+            Ok(values)
+        }
+
+        async fn update(&self, song: SongRecord) -> Result<SongRecord, StoreError> {
+            let mut data = self.data.lock().await;
+            if !data.contains_key(&song.id) {
+                return Err(StoreError::NotFound);
+            }
+            data.insert(song.id, song.clone());
+            Ok(song)
+        }
+
+        async fn delete(&self, id: u64) -> Result<(), StoreError> {
+            let mut data = self.data.lock().await;
+            if data.remove(&id).is_none() {
+                return Err(StoreError::NotFound);
+            }
+            Ok(())
+        }
+    }
+
+    async fn start_server(store: Arc<dyn SongStore>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+        let addr: SocketAddr = "127.0.0.1:0".parse().expect("addr");
+        let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        let service = SongServiceServer::new(SongServer::with_store(store));
+
+        let handle = tokio::spawn(async move {
+            Server::builder()
+                .add_service(service)
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .expect("grpc server failed");
+        });
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        (addr, handle)
+    }
+
+    async fn create_client(addr: SocketAddr) -> SongServiceClient<Channel> {
+        let endpoint = format!("http://{}:{}", addr.ip(), addr.port());
+        SongServiceClient::connect(endpoint).await.expect("connect")
+    }
+
+    #[tokio::test]
+    async fn e2e_song_crud() {
+        let store = Arc::new(MockSongStore::new());
+        let (addr, _handle) = start_server(store).await;
+        let mut client = create_client(addr).await;
+
+        let create = CreateSongRequest {
+            parent: String::new(),
+            song_id: String::new(),
+            song: Some(Song {
+                id: 0,
+                title: "Song".to_string(),
+                description: "Desc".to_string(),
+                link: "Link".to_string(),
+            }),
+        };
+        let created = client
+            .create_song(Request::new(create))
+            .await
+            .expect("create")
+            .into_inner();
+
+        let fetched = client
+            .get_song(Request::new(GetSongRequest {
+                name: created.id.to_string(),
+            }))
+            .await
+            .expect("get")
+            .into_inner();
+        assert_eq!(fetched.title, "Song");
+
+        let list = client
+            .list_songs(Request::new(ListSongsRequest {
+                parent: String::new(),
+                page_size: 10,
+                page_token: String::new(),
+            }))
+            .await
+            .expect("list")
+            .into_inner();
+        assert_eq!(list.songs.len(), 1);
+
+        let update = UpdateSongRequest {
+            song: Some(Song {
+                id: created.id,
+                title: "Song 2".to_string(),
+                description: "Desc 2".to_string(),
+                link: "Link 2".to_string(),
+            }),
+            update_mask: None,
+        };
+        let updated = client
+            .update_song(Request::new(update))
+            .await
+            .expect("update")
+            .into_inner();
+        assert_eq!(updated.title, "Song 2");
+
+        client
+            .delete_song(Request::new(DeleteSongRequest {
+                name: created.id.to_string(),
+            }))
+            .await
+            .expect("delete");
     }
 }

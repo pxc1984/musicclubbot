@@ -1,16 +1,19 @@
 mod grpc;
 
-use std::sync::Arc;
-
 use api::pb::{
     auth_service_server, concert_service_server, participation_service_server, song_service_server,
 };
 use env_logger::Env;
 use sqlx::postgres::PgPoolOptions;
 use tonic::{Result, transport::Server};
+use tonic_middleware::InterceptorFor;
 
 use crate::grpc::{
-    auth::AuthServer, concert::ConcertServer, participation::ParticipationServer, song::SongServer,
+    auth::{AuthInterceptor, AuthServer},
+    concert::ConcertServer,
+    middleware::AdminOnlyMiddleware,
+    participation::ParticipationServer,
+    song::SongServer,
 };
 
 #[tokio::main]
@@ -19,23 +22,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let addr = "[::1]:6969".parse()?;
     let database_url = database_url_from_env()?;
-    let pool = PgPoolOptions::new()
-        .max_connections(8)
-        .connect(&database_url)
-        .await?;
-
-    let auth = Arc::new(AuthServer::new(&secret_key_from_env()));
+    let pool = PgPoolOptions::new().max_connections(8).connect(&database_url).await?;
+    let admin_ids = load_admin_ids()?;
+    let jwt_secret = std::env::var("JWT_SECRET")
+        .or_else(|_| std::env::var("BOT_TOKEN"))
+        .map_err(|_| "JWT_SECRET or BOT_TOKEN must be set")?;
+    let jwt_ttl_seconds: u64 = std::env::var("JWT_TTL_SECONDS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(60 * 60);
+    let auth_interceptor = AuthInterceptor::new(jwt_secret.as_bytes());
+    let admin_middleware = AdminOnlyMiddleware::new(admin_ids.clone());
 
     log::info!("Server is running at {addr}");
     Server::builder()
-        .add_service(auth_service_server::AuthServiceServer::from_arc(
-            Arc::clone(&auth),
-        ))
+        .add_service(auth_service_server::AuthServiceServer::new(AuthServer::new(
+            jwt_secret.as_bytes(),
+            admin_ids,
+            std::time::Duration::from_secs(jwt_ttl_seconds),
+        )))
         .add_service(song_service_server::SongServiceServer::new(
             SongServer::new(pool.clone()),
         ))
-        .add_service(concert_service_server::ConcertServiceServer::new(
-            ConcertServer::new(pool.clone()),
+        .add_service(tonic_middleware::MiddlewareFor::new(
+            InterceptorFor::new(
+                concert_service_server::ConcertServiceServer::new(ConcertServer::new(pool.clone())),
+                auth_interceptor,
+            ),
+            admin_middleware,
         ))
         .add_service(
             participation_service_server::ParticipationServiceServer::new(
@@ -46,15 +60,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
-}
-
-const DEFAULT_SECRET_KEY: &[u8] = b"key";
-
-fn secret_key_from_env() -> Vec<u8> {
-    match std::env::var("SECRET_KEY") {
-        Ok(k) => k.into(),
-        Err(_) => DEFAULT_SECRET_KEY.into(),
-    }
 }
 
 fn database_url_from_env() -> Result<String, Box<dyn std::error::Error>> {
@@ -75,6 +80,12 @@ fn database_url_from_env() -> Result<String, Box<dyn std::error::Error>> {
     let port = std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
 
     Ok(format!("postgres://{user}:{password}@{host}:{port}/{db}"))
+}
+
+fn load_admin_ids() -> Result<std::collections::HashSet<u64>, Box<dyn std::error::Error>> {
+    let raw = std::env::var("ADMIN_IDS")?;
+    let ids: Vec<u64> = serde_json::from_str(&raw)?;
+    Ok(ids.into_iter().collect())
 }
 
 #[cfg(test)]
