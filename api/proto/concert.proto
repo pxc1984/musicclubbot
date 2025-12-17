@@ -7,7 +7,7 @@ import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 
 message Concert {
-  uint32 id = 1;
+  uint64 id = 1;
   string name = 2;
   google.protobuf.Timestamp date = 3;
 }

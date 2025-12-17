@@ -1,10 +1,14 @@
 mod grpc;
 
-use api::pb::{auth_service_server, concert_service_server, song_service_server};
+use api::pb::{
+    auth_service_server, concert_service_server, participation_service_server, song_service_server,
+};
 use env_logger::Env;
 use tonic::{Result, transport::Server};
 
-use crate::grpc::{auth::AuthServer, concert::ConcertServer, song::SongServer};
+use crate::grpc::{
+    auth::AuthServer, concert::ConcertServer, participation::ParticipationServer, song::SongServer,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,6 +26,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(concert_service_server::ConcertServiceServer::new(
             ConcertServer::default(),
         ))
+        .add_service(
+            participation_service_server::ParticipationServiceServer::new(
+                ParticipationServer::default(),
+            ),
+        )
         .serve(addr)
         .await?;
 
