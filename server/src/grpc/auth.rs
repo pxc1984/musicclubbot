@@ -76,6 +76,7 @@ impl AuthService for AuthServer {
             return Err(Status::invalid_argument("tg_id must be non-zero"));
         }
         let token = self.sign(tg_id);
+        log::debug!("Handled login request for {tg_id} and returned token {token:.20}");
         Ok(Response::new(LoginResponse { token }))
     }
 }
