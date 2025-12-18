@@ -17,10 +17,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["ruff==0.14.0", "coverage==7.10.7"]
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
 [tool.ruff]
 builtins = []
 cache-dir = ".ruff_cache"

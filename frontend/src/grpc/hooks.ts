@@ -7,10 +7,10 @@ import {
   userClient
 } from "./client";
 import {
-  Concert,
-  Participation,
-  Song,
-  TgLogin
+  type ConcertType,
+  type ParticipationType,
+  type SongType,
+  type TgLoginType
 } from "./schema";
 import { PlainMessage } from "@bufbuild/protobuf";
 import { saveToken, clearToken } from "../lib/auth";
@@ -52,7 +52,7 @@ export function useParticipations() {
 export function useCreateSong() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (song: PlainMessage<typeof Song.T>) => {
+    mutationFn: async (song: PlainMessage<SongType>) => {
       const res = await songClient.createSong({
         parent: "",
         song_id: `${song.title}-${Date.now()}`,
@@ -67,7 +67,7 @@ export function useCreateSong() {
 export function useCreateConcert() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (concert: PlainMessage<typeof Concert.T>) => {
+    mutationFn: async (concert: PlainMessage<ConcertType>) => {
       const res = await concertClient.createConcert({
         parent: "",
         concert_id: `${concert.name}-${Date.now()}`,
@@ -82,7 +82,7 @@ export function useCreateConcert() {
 export function useCreateParticipation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (participation: PlainMessage<typeof Participation.T>) => {
+    mutationFn: async (participation: PlainMessage<ParticipationType>) => {
       const res = await participationClient.createParticipation({
         parent: "",
         participation_id: `${participation.tg_id}-${participation.song_id}`,
@@ -128,7 +128,7 @@ export function useLogin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (tgId: string) => {
-      const payload: PlainMessage<typeof TgLogin.T> = {
+      const payload: PlainMessage<TgLoginType> = {
         tg_id: BigInt(tgId)
       };
       const res = await authClient.loginTg(payload);

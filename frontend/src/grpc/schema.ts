@@ -1,5 +1,4 @@
-import { proto3, ScalarType, MethodKind, Empty, FieldMask } from "@bufbuild/protobuf";
-import { Timestamp } from "@bufbuild/protobuf";
+import { proto3, ScalarType, MethodKind, Empty, FieldMask, Timestamp } from "@bufbuild/protobuf";
 
 export const Song = proto3.makeMessageType(
   "song.Song",
@@ -11,7 +10,7 @@ export const Song = proto3.makeMessageType(
   ]
 );
 
-export type SongType = typeof Song.T;
+export type SongType = InstanceType<typeof Song>;
 
 export const ListSongsRequest = proto3.makeMessageType(
   "song.ListSongsRequest",
@@ -107,7 +106,7 @@ export const Concert = proto3.makeMessageType(
   ]
 );
 
-export type ConcertType = typeof Concert.T;
+export type ConcertType = InstanceType<typeof Concert>;
 
 export const ListConcertsRequest = proto3.makeMessageType(
   "concert.ListConcertsRequest",
@@ -203,7 +202,8 @@ export const Participation = proto3.makeMessageType(
   ]
 );
 
-export type ParticipationType = typeof Participation.T;
+export type ParticipationType = InstanceType<typeof Participation>;
+export type TgLoginType = InstanceType<typeof TgLogin>;
 
 export const ListParticipationsRequest = proto3.makeMessageType(
   "participation.ListParticipationsRequest",

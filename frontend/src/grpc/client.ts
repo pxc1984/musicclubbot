@@ -1,8 +1,5 @@
-import { createClient } from "@connectrpc/connect";
-import {
-  createGrpcWebTransport,
-  Interceptor
-} from "@connectrpc/connect-web";
+import { createClient, Interceptor } from "@connectrpc/connect";
+import { createGrpcWebTransport } from "@connectrpc/connect-web";
 
 import {
   AuthService,
@@ -13,7 +10,7 @@ import {
 } from "./schema";
 import { getToken } from "../lib/auth";
 
-const baseUrl = import.meta.env.VITE_GRPC_HOST ?? "http://localhost:8080";
+const baseUrl = import.meta.env.VITE_GRPC_HOST ?? "http://backend:6969";
 
 const authInterceptor: Interceptor = (next) => async (req) => {
   const token = getToken();

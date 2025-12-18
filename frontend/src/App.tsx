@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { JSXElementConstructor, ReactElement, ReactNode, ReactPortal, useMemo, useState } from "react";
 import {
   useConcerts,
   useCreateConcert,
@@ -230,7 +230,7 @@ export default function App() {
             <p className="subtle">Loading songs...</p>
           ) : (
             <div className="scroll-y">
-              {songs?.map((song) => (
+              {songs?.map((song: { id: any; title: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; description: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; link: string | undefined; }) => (
                 <div className="list-row" key={String(song.id)}>
                   <div>
                     <div className="card-title">{song.title}</div>
@@ -294,7 +294,7 @@ export default function App() {
             <p className="subtle">Loading concerts...</p>
           ) : (
             <div className="scroll-y">
-              {concerts?.map((concert) => (
+              {concerts?.map((concert: { id: any; name: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; date: { toDate: () => { (): any; new(): any; toLocaleString: { (): any; new(): any; }; }; }; }) => (
                 <div className="list-row" key={String(concert.id)}>
                   <div>
                     <div className="card-title">{concert.name}</div>
@@ -371,7 +371,7 @@ export default function App() {
             <p className="subtle">Loading participations...</p>
           ) : (
             <div className="scroll-y">
-              {participations?.map((p) => (
+              {participations?.map((p: { tg_id: any; song_id: any; role_title: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; }) => (
                 <div className="list-row" key={`${p.tg_id}-${p.song_id}`}>
                   <div>
                     <div className="card-title">{p.role_title}</div>
