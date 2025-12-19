@@ -1,11 +1,21 @@
-import { createConnectTransport } from "@connectrpc/connect-web";
+import { type Interceptor } from "@connectrpc/connect";
+import { createGrpcWebTransport } from "@connectrpc/connect-web";
 
-export const BACKEND_URL = import.meta.env.BASE_URL ?? "http://backend:6969";
-export const transport = createConnectTransport({
+export const BACKEND_URL = import.meta.env.VITE_GRPC_HOST ?? "http://backend:6969";
+
+let TOKEN = "PLACEHOLDER";
+
+const authInterceptor: Interceptor = (next) => async (req) => {
+	if (TOKEN) {
+		req.header.set("authorization", `Bearer ${TOKEN}`);
+	}
+	return await next(req);
+};
+
+export const transport = createGrpcWebTransport({
 	baseUrl: BACKEND_URL,
+	interceptors: [authInterceptor],
 });
-
-var TOKEN = "PLACEHOLDER";
 
 export function getToken(): string {
 	return TOKEN;
