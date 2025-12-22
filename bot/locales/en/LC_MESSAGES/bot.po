@@ -1,0 +1,13 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Open webapp"
+msgstr "Open webapp"
+
+msgid "Welcome! Click the button below to open the webapp:\n{url}"
+msgstr "Welcome! Click the button below to open the webapp:\n{url}"
+
+msgid "Send /start to get the webapp link."
+msgstr "Send /start to get the webapp link."
