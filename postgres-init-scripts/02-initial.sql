@@ -111,3 +111,13 @@ CREATE TABLE IF NOT EXISTS tg_auth_user (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_user_tg_user ON tg_auth_user (tg_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_session_user ON tg_auth_session (tg_user_id);
+-- Refresh tokens table
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);

@@ -10,13 +10,15 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"musicclubbot/backend/internal/config"
 	authpb "musicclubbot/backend/proto"
 	permissionspb "musicclubbot/backend/proto"
 	userpb "musicclubbot/backend/proto"
@@ -26,16 +28,24 @@ import (
 
 // JWT configuration
 const (
-	jwtSecretKey     = "your-secret-key-change-in-production" // Change this in production
-	accessTokenExp   = 15 * time.Minute                       // 15 minutes
-	refreshTokenExp  = 7 * 24 * time.Hour                     // 7 days
-	refreshTokenSize = 32                                     // bytes for refresh token
+	accessTokenExp   = 15 * time.Minute   // 15 minutes
+	refreshTokenExp  = 7 * 24 * time.Hour // 7 days
+	refreshTokenSize = 32                 // bytes for refresh token
 )
 
 type JWTClaims struct {
-	UserID   int64  `json:"user_id"`
+	UserID   string `json:"user_id"`
 	Username string `json:"username"`
 	jwt.RegisteredClaims
+}
+
+// Refresh tokens table structure
+type RefreshToken struct {
+	ID        string    `db:"id"`
+	UserID    string    `db:"user_id"`
+	Token     string    `db:"token"`
+	ExpiresAt time.Time `db:"expires_at"`
+	CreatedAt time.Time `db:"created_at"`
 }
 
 func hashPassword(password string) (string, error) {
@@ -51,22 +61,23 @@ func checkPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func generateAccessToken(userID int64, username string) (string, error) {
+func generateAccessToken(ctx context.Context, userID uuid.UUID, username string) (string, error) {
+	cfg := ctx.Value("cfg").(*config.Config)
 	expirationTime := time.Now().Add(accessTokenExp)
 
 	claims := &JWTClaims{
-		UserID:   userID,
+		UserID:   userID.String(),
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "musicclubbot",
-			Subject:   fmt.Sprintf("%d", userID),
+			Subject:   userID.String(),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(jwtSecretKey))
+	return token.SignedString(cfg.JwtSecretKey)
 }
 
 func generateRefreshToken() (string, error) {
@@ -78,12 +89,13 @@ func generateRefreshToken() (string, error) {
 	return base64.URLEncoding.EncodeToString(tokenBytes), nil
 }
 
-func verifyToken(tokenString string) (*JWTClaims, error) {
+func verifyToken(ctx context.Context, tokenString string) (*JWTClaims, error) {
+	cfg := ctx.Value("cfg").(*config.Config)
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(jwtSecretKey), nil
+		return cfg.JwtSecretKey, nil
 	})
 
 	if err != nil {
@@ -100,6 +112,8 @@ func verifyToken(tokenString string) (*JWTClaims, error) {
 // AuthService implements auth-related gRPC endpoints.
 type AuthService struct {
 	authpb.UnimplementedAuthServiceServer
+	// You might want to add dependencies like a Telegram bot client here
+	// telegramBot *tgbotapi.BotAPI
 }
 
 func (s *AuthService) Register(ctx context.Context, req *authpb.RegisterUserRequest) (*authpb.AuthSession, error) {
@@ -108,13 +122,17 @@ func (s *AuthService) Register(ctx context.Context, req *authpb.RegisterUserRequ
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	username := req.GetCredentials().Username
+	username := req.GetCredentials().GetUsername()
 	if username == "" {
 		return nil, status.Error(codes.InvalidArgument, "username is required")
 	}
 
 	var exists bool
-	err = db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM "app_user" WHERE username=$1)`, username).Scan(&exists)
+	err = db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM app_user WHERE username = $1)`,
+		username,
+	).Scan(&exists)
+
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "check existing username: %v", err)
 	}
@@ -122,7 +140,7 @@ func (s *AuthService) Register(ctx context.Context, req *authpb.RegisterUserRequ
 		return nil, status.Error(codes.AlreadyExists, "username already taken")
 	}
 
-	password := req.GetCredentials().Password
+	password := req.GetCredentials().GetPassword()
 	if !acceptablePassword(password) {
 		return nil, status.Error(codes.InvalidArgument, "password does not meet complexity requirements")
 	}
@@ -138,23 +156,51 @@ func (s *AuthService) Register(ctx context.Context, req *authpb.RegisterUserRequ
 	}
 	defer tx.Rollback()
 
-	var userID int64
+	var userID uuid.UUID
+	var displayName string
+	var avatarUrl *string
+
+	profile := req.GetProfile()
+	if profile != nil {
+		displayName = profile.GetDisplayName()
+		if profile.GetAvatarUrl() != "" {
+			avatarUrl = &profile.AvatarUrl
+		}
+	}
+
+	// Use default display name if not provided
+	if displayName == "" {
+		displayName = username
+	}
+
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO "app_user" (username, password_hash, display_name, avatar_url) 
-		VALUES ($1, $2, $3, $4)
-		RETURNING id`,
+		INSERT INTO app_user (username, password_hash, display_name, avatar_url, is_chat_member) 
+		VALUES ($1, $2, $3, $4, FALSE)
+		RETURNING id, display_name, avatar_url, created_at`,
 		username,
 		hashedPassword,
-		req.GetProfile().GetDisplayName(),
-		req.GetProfile().GetAvatarUrl(),
-	).Scan(&userID)
+		displayName,
+		avatarUrl,
+	).Scan(&userID, &displayName, &avatarUrl)
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "insert user: %v", err)
 	}
 
+	// челику без тг запрещено все
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO user_permissions (user_id, edit_own_participation, edit_any_participation, 
+		                              edit_own_songs, edit_any_songs, edit_events, edit_tracklists)
+		VALUES ($1, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)`,
+		userID,
+	)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "set default permissions: %v", err)
+	}
+
 	// Generate JWT tokens
-	accessToken, err := generateAccessToken(userID, username)
+	accessToken, err := generateAccessToken(ctx, userID, username)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "generate access token: %v", err)
 	}
@@ -167,27 +213,43 @@ func (s *AuthService) Register(ctx context.Context, req *authpb.RegisterUserRequ
 	// Store refresh token in database
 	refreshExpiresAt := time.Now().Add(refreshTokenExp)
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO refresh_tokens (user_id, token, expires_at)
-		VALUES ($1, $2, $3)`,
+		INSERT INTO refresh_tokens (id, user_id, token, expires_at)
+		VALUES (gen_random_uuid(), $1, $2, $3)`,
 		userID, refreshToken, refreshExpiresAt)
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "store refresh token: %v", err)
 	}
 
-	permissions := &permissionspb.PermissionSet{} // all false
+	// Get permissions for response
+	permissions, err := getUserPermissions(ctx, tx, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get user permissions: %v", err)
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, status.Errorf(codes.Internal, "commit: %v", err)
 	}
 
 	// Create user profile response
-	profile := &userpb.User{
-		Id:          userID,
+	profileResp := &userpb.User{
+		Id:          userID.String(),
 		Username:    username,
-		DisplayName: req.GetProfile().GetDisplayName(),
-		AvatarUrl:   req.GetProfile().GetAvatarUrl(),
-		CreatedAt:   timestamppb.New(time.Now()),
+		DisplayName: displayName,
+	}
+	if avatarUrl != nil {
+		profileResp.AvatarUrl = *avatarUrl
+	}
+
+	// Check if user is chat member
+	var isChatMember bool
+	err = db.QueryRowContext(ctx,
+		`SELECT is_chat_member FROM app_user WHERE id = $1`,
+		userID,
+	).Scan(&isChatMember)
+
+	if err != nil {
+		isChatMember = false
 	}
 
 	return &authpb.AuthSession{
@@ -197,9 +259,9 @@ func (s *AuthService) Register(ctx context.Context, req *authpb.RegisterUserRequ
 		},
 		Iat:            uint64(time.Now().Unix()),
 		Exp:            uint64(time.Now().Add(accessTokenExp).Unix()),
-		IsChatMember:   false,                                      // New user not in chat yet
-		JoinRequestUrl: "https://t.me/your_bot?start=join_request", // Your bot join link
-		Profile:        profile,
+		IsChatMember:   isChatMember,
+		JoinRequestUrl: "https://t.me/your_musicclub_bot?start=join", // Replace with your bot
+		Profile:        profileResp,
 		Permissions:    permissions,
 	}, nil
 }
@@ -218,17 +280,19 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.Credentials) (*auth
 	}
 
 	// Get user from database
-	var userID int64
+	var userID uuid.UUID
 	var hashedPassword string
-	var displayName, avatarUrl string
+	var displayName string
+	var avatarUrl sql.NullString
+	var isChatMember bool
 	var createdAt time.Time
 
 	err = db.QueryRowContext(ctx, `
-		SELECT id, password_hash, display_name, avatar_url, created_at
-		FROM "app_user" 
+		SELECT id, password_hash, display_name, avatar_url, is_chat_member, created_at
+		FROM app_user 
 		WHERE username = $1`,
 		username,
-	).Scan(&userID, &hashedPassword, &displayName, &avatarUrl, &createdAt)
+	).Scan(&userID, &hashedPassword, &displayName, &avatarUrl, &isChatMember, &createdAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -243,7 +307,7 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.Credentials) (*auth
 	}
 
 	// Generate new tokens
-	accessToken, err := generateAccessToken(userID, username)
+	accessToken, err := generateAccessToken(ctx, userID, username)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "generate access token: %v", err)
 	}
@@ -262,8 +326,8 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.Credentials) (*auth
 
 	// Invalidate old refresh tokens for this user
 	_, err = tx.ExecContext(ctx, `
-		DELETE FROM refresh_tokens 
-		WHERE user_id = $1`,
+			DELETE FROM refresh_tokens 
+			WHERE user_id = $1`,
 		userID)
 
 	if err != nil {
@@ -273,39 +337,19 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.Credentials) (*auth
 	// Store new refresh token
 	refreshExpiresAt := time.Now().Add(refreshTokenExp)
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO refresh_tokens (user_id, token, expires_at)
-		VALUES ($1, $2, $3)`,
+			INSERT INTO refresh_tokens (id, user_id, token, expires_at)
+			VALUES (gen_random_uuid(), $1, $2, $3)`,
 		userID, refreshToken, refreshExpiresAt)
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "store refresh token: %v", err)
 	}
 
-	// Check if user is chat member (you need to implement this based on your chat membership logic)
-	var isChatMember bool
-	err = tx.QueryRowContext(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM chat_members 
-			WHERE user_id = $1 AND is_active = true
-		)`, userID).Scan(&isChatMember)
-
-	if err != nil && err != sql.ErrNoRows {
-		// Log but don't fail if we can't check membership
-		isChatMember = false
-	}
-
-	// Get user permissions (implement based on your permission system)
+	// Get user permissions
 	permissions, err := getUserPermissions(ctx, tx, userID)
 	if err != nil {
 		// Use default permissions if we can't fetch
-		permissions = &permissionspb.PermissionSet{
-			CanViewContent:  true,
-			CanJoinChat:     !isChatMember,
-			CanPostContent:  false,
-			CanInviteUsers:  false,
-			CanManageUsers:  false,
-			CanModerateChat: false,
-		}
+		permissions = &permissionspb.PermissionSet{}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -314,11 +358,12 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.Credentials) (*auth
 
 	// Create user profile
 	profile := &userpb.User{
-		Id:          userID,
+		Id:          userID.String(),
 		Username:    username,
 		DisplayName: displayName,
-		AvatarUrl:   avatarUrl,
-		CreatedAt:   timestamppb.New(createdAt),
+	}
+	if avatarUrl.Valid {
+		profile.AvatarUrl = avatarUrl.String
 	}
 
 	return &authpb.AuthSession{
@@ -329,7 +374,7 @@ func (s *AuthService) Login(ctx context.Context, req *authpb.Credentials) (*auth
 		Iat:            uint64(time.Now().Unix()),
 		Exp:            uint64(time.Now().Add(accessTokenExp).Unix()),
 		IsChatMember:   isChatMember,
-		JoinRequestUrl: "https://t.me/your_bot?start=join_request",
+		JoinRequestUrl: "https://t.me/your_musicclub_bot?start=join", // TODO start link generation
 		Profile:        profile,
 		Permissions:    permissions,
 	}, nil
@@ -347,7 +392,7 @@ func (s *AuthService) Refresh(ctx context.Context, req *authpb.RefreshRequest) (
 	}
 
 	// Verify refresh token exists and is valid
-	var userID int64
+	var userID uuid.UUID
 	var expiresAt time.Time
 
 	err = db.QueryRowContext(ctx, `
@@ -367,7 +412,7 @@ func (s *AuthService) Refresh(ctx context.Context, req *authpb.RefreshRequest) (
 	// Get user info for new token
 	var username string
 	err = db.QueryRowContext(ctx, `
-		SELECT username FROM "app_user" WHERE id = $1`,
+		SELECT username FROM app_user WHERE id = $1`,
 		userID,
 	).Scan(&username)
 
@@ -376,7 +421,7 @@ func (s *AuthService) Refresh(ctx context.Context, req *authpb.RefreshRequest) (
 	}
 
 	// Generate new tokens
-	newAccessToken, err := generateAccessToken(userID, username)
+	newAccessToken, err := generateAccessToken(ctx, userID, username)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "generate access token: %v", err)
 	}
@@ -405,8 +450,8 @@ func (s *AuthService) Refresh(ctx context.Context, req *authpb.RefreshRequest) (
 	// Store new refresh token
 	newRefreshExpiresAt := time.Now().Add(refreshTokenExp)
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO refresh_tokens (user_id, token, expires_at)
-		VALUES ($1, $2, $3)`,
+		INSERT INTO refresh_tokens (id, user_id, token, expires_at)
+		VALUES (gen_random_uuid(), $1, $2, $3)`,
 		userID, newRefreshToken, newRefreshExpiresAt)
 
 	if err != nil {
@@ -424,19 +469,85 @@ func (s *AuthService) Refresh(ctx context.Context, req *authpb.RefreshRequest) (
 }
 
 func (s *AuthService) GetTgLoginLink(ctx context.Context, req *userpb.User) (*authpb.TgLoginLinkResponse, error) {
-	// Generate Telegram bot login link with user ID as parameter
-	// This would typically be a deep link to your Telegram bot
-	botUsername := "your_bot_username" // Replace with your bot username
+	// Get user ID from context (user must be authenticated)
+	userIDStr, err := userIDFromCtx(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "authentication required")
+	}
 
-	// Generate a unique login token for this request
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+	}
+
+	db, err := dbFromCtx(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// Check if user already has Telegram linked
+	var existingTgID sql.NullInt64
+	err = db.QueryRowContext(ctx, `
+		SELECT tg_user_id FROM app_user WHERE id = $1`,
+		userID,
+	).Scan(&existingTgID)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query user: %v", err)
+	}
+
+	if existingTgID.Valid {
+		return nil, status.Error(codes.AlreadyExists, "Telegram already linked to this account")
+	}
+
+	// Generate a unique login token
 	loginToken, err := generateRefreshToken()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "generate login token: %v", err)
 	}
 
-	// Store the login token temporarily (you might want to use Redis for this)
-	// For now, we'll just return a static link
-	loginLink := fmt.Sprintf("https://t.me/%s?start=login_%s", botUsername, loginToken)
+	// Store the login token in tg_auth_session table
+	// Note: You need to create tg_auth_session table as referenced in your schema
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO tg_auth_session (id, user_id, tg_user_id, success, created_at)
+		VALUES (gen_random_uuid(), $1, NULL, FALSE, NOW())`,
+		userID,
+	)
+
+	if err != nil {
+		// Table might not exist, create it
+		if strings.Contains(err.Error(), "does not exist") {
+			_, createErr := db.ExecContext(ctx, `
+				CREATE TABLE IF NOT EXISTS tg_auth_session (
+					id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+					user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+					tg_user_id BIGINT,
+					success BOOLEAN NOT NULL DEFAULT FALSE,
+					created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+				);
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_session_user ON tg_auth_session (user_id);
+			`)
+			if createErr != nil {
+				return nil, status.Errorf(codes.Internal, "create tg_auth_session table: %v", createErr)
+			}
+
+			// Retry insert
+			_, err = db.ExecContext(ctx, `
+				INSERT INTO tg_auth_session (user_id, success)
+				VALUES ($1, FALSE)`,
+				userID,
+			)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "store tg auth session: %v", err)
+			}
+		} else {
+			return nil, status.Errorf(codes.Internal, "store tg auth session: %v", err)
+		}
+	}
+
+	// Generate Telegram bot deep link
+	botUsername := "your_musicclub_bot" // Replace with your bot username
+	loginLink := fmt.Sprintf("https://t.me/%s?start=auth_%s", botUsername, loginToken)
 
 	return &authpb.TgLoginLinkResponse{
 		LoginLink: loginLink,
@@ -444,10 +555,15 @@ func (s *AuthService) GetTgLoginLink(ctx context.Context, req *userpb.User) (*au
 }
 
 func (s *AuthService) GetProfile(ctx context.Context, req *emptypb.Empty) (*authpb.ProfileResponse, error) {
-	// Extract user ID from context (set by authentication middleware)
-	userID, err := getUserIDFromCtx(ctx)
+	// Extract user ID from context
+	userIDStr, err := userIDFromCtx(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "authentication required")
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "invalid user ID format")
 	}
 
 	db, err := dbFromCtx(ctx)
@@ -456,15 +572,18 @@ func (s *AuthService) GetProfile(ctx context.Context, req *emptypb.Empty) (*auth
 	}
 
 	// Get user profile
-	var username, displayName, avatarUrl string
+	var username, displayName string
+	var avatarUrl sql.NullString
+	var tgUserID sql.NullInt64
+	var isChatMember bool
 	var createdAt time.Time
 
 	err = db.QueryRowContext(ctx, `
-		SELECT username, display_name, avatar_url, created_at
-		FROM "app_user" 
+		SELECT username, display_name, avatar_url, tg_user_id, is_chat_member, created_at
+		FROM app_user 
 		WHERE id = $1`,
 		userID,
-	).Scan(&username, &displayName, &avatarUrl, &createdAt)
+	).Scan(&username, &displayName, &avatarUrl, &tgUserID, &isChatMember, &createdAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -473,38 +592,23 @@ func (s *AuthService) GetProfile(ctx context.Context, req *emptypb.Empty) (*auth
 		return nil, status.Errorf(codes.Internal, "query user: %v", err)
 	}
 
-	// Check if user is chat member
-	var isChatMember bool
-	err = db.QueryRowContext(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM chat_members 
-			WHERE user_id = $1 AND is_active = true
-		)`, userID).Scan(&isChatMember)
-
-	if err != nil && err != sql.ErrNoRows {
-		isChatMember = false
-	}
-
 	// Get user permissions
 	permissions, err := getUserPermissions(ctx, db, userID)
 	if err != nil {
 		// Use default permissions if we can't fetch
-		permissions = &permissionspb.PermissionSet{
-			CanViewContent:  true,
-			CanJoinChat:     !isChatMember,
-			CanPostContent:  false,
-			CanInviteUsers:  false,
-			CanManageUsers:  false,
-			CanModerateChat: false,
-		}
+		permissions = &permissionspb.PermissionSet{}
 	}
 
 	profile := &userpb.User{
-		Id:          userID,
+		Id:          userID.String(),
 		Username:    username,
 		DisplayName: displayName,
-		AvatarUrl:   avatarUrl,
-		CreatedAt:   timestamppb.New(createdAt),
+	}
+	if avatarUrl.Valid {
+		profile.AvatarUrl = avatarUrl.String
+	}
+	if tgUserID.Valid {
+		profile.TelgramId = uint64(tgUserID.Int64)
 	}
 
 	return &authpb.ProfileResponse{
@@ -522,41 +626,61 @@ func acceptablePassword(password string) bool {
 		return false
 	}
 	// Add more complexity checks if needed
+	// e.g., require at least one uppercase, one lowercase, one number, one special char
 	return true
 }
 
-func getUserIDFromCtx(ctx context.Context) (int64, error) {
-	// This would be set by your authentication middleware
-	// For example, if you use JWT middleware that adds claims to context
-	claims, ok := ctx.Value("user_claims").(*JWTClaims)
-	if !ok || claims == nil {
-		return 0, fmt.Errorf("no user claims in context")
+func getUserPermissions(ctx context.Context, db interface{}, userID uuid.UUID) (*permissionspb.PermissionSet, error) {
+	var queryRow interface {
+		QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 	}
-	return claims.UserID, nil
+
+	switch d := db.(type) {
+	case *sql.DB:
+		queryRow = d
+	case *sql.Tx:
+		queryRow = d
+	default:
+		return nil, fmt.Errorf("unsupported database type")
+	}
+
+	var permissions permissionspb.PermissionSet
+
+	err := queryRow.QueryRowContext(ctx, `
+		SELECT edit_own_participation, edit_any_participation, 
+		       edit_own_songs, edit_any_songs, edit_events, edit_tracklists
+		FROM user_permissions 
+		WHERE user_id = $1`,
+		userID,
+	).Scan(
+		permissions.GetJoin().GetEditOwnParticipation(),
+		permissions.GetJoin().GetEditAnyParticipation(),
+		permissions.GetSongs().GetEditOwnSongs(),
+		permissions.GetSongs().GetEditAnySongs(),
+		permissions.GetEvents().GetEditEvents(),
+		permissions.GetEvents().GetEditTracklists(),
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Return default permissions if user has no specific permissions
+			return &permissionspb.PermissionSet{}, nil
+		}
+		return nil, err
+	}
+
+	return &permissions, nil
 }
 
-func getUserPermissions(ctx context.Context, db interface{}, userID int64) (*permissionspb.PermissionSet, error) {
-	// Implement your permission logic here
-	// This is a simplified example - adjust based on your actual permission system
-
-	// For now, return default permissions
-	// You might want to query a permissions table or check user roles
-	return &permissionspb.PermissionSet{
-		CanViewContent:  true,
-		CanJoinChat:     true,
-		CanPostContent:  true,
-		CanInviteUsers:  false,
-		CanManageUsers:  false,
-		CanModerateChat: false,
-	}, nil
+var PublicMethods = map[string]bool{
+	"/musicclub.auth.AuthService/Login":    true,
+	"/musicclub.auth.AuthService/Register": true,
+	"/musicclub.auth.AuthService/Refresh":  true,
 }
 
-// Middleware for JWT authentication
+// Authentication middleware
 func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	// Skip authentication for login and register endpoints
-	if info.FullMethod == "/musicclub.auth.AuthService/Login" ||
-		info.FullMethod == "/musicclub.auth.AuthService/Register" ||
-		info.FullMethod == "/musicclub.auth.AuthService/Refresh" {
+	if PublicMethods[info.FullMethod] {
 		return handler(ctx, req)
 	}
 
@@ -577,13 +701,29 @@ func AuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServe
 
 	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
-	claims, err := verifyToken(tokenString)
+	claims, err := verifyToken(ctx, tokenString)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
-	// Add claims to context for use in handlers
+	db, err := dbFromCtx(ctx)
+	if err == nil {
+		var exists bool
+		userID, parseErr := uuid.Parse(claims.UserID)
+		if parseErr == nil {
+			err = db.QueryRowContext(ctx,
+				`SELECT EXISTS(SELECT 1 FROM app_user WHERE id = $1)`,
+				userID,
+			).Scan(&exists)
+
+			if err == nil && !exists {
+				return nil, status.Error(codes.Unauthenticated, "user no longer exists")
+			}
+		}
+	}
+
 	ctx = context.WithValue(ctx, "user_claims", claims)
+	ctx = context.WithValue(ctx, "user_id", claims.UserID)
 
 	return handler(ctx, req)
 }

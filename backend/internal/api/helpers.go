@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -35,22 +33,25 @@ func userIDFromCtx(ctx context.Context) (string, error) {
 	return userID, nil
 }
 
-func defaultJWTTTLSeconds() int64 {
-	if raw := os.Getenv("JWT_TTL_SECONDS"); raw != "" {
-		if v, err := strconv.ParseInt(raw, 10, 64); err == nil && v > 0 {
-			return v
-		}
-	}
-	return 7200
-}
-
-func loadUser(ctx context.Context, db *sql.DB, userID string) (*authpb.User, error) {
+func loadUserById(ctx context.Context, db *sql.DB, userID string) (*authpb.User, error) {
 	row := db.QueryRowContext(ctx, `
 		SELECT id, display_name, tg_username, COALESCE(avatar_url, '')
 		FROM app_user WHERE id = $1
 	`, userID)
 	var u authpb.User
-	if err := row.Scan(&u.Id, &u.DisplayName, &u.TgUsername, &u.AvatarUrl); err != nil {
+	if err := row.Scan(&u.Id, &u.DisplayName, &u.Username, &u.AvatarUrl); err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func loadUserByUsername(ctx context.Context, db *sql.DB, username string) (*authpb.User, error) {
+	row := db.QueryRowContext(ctx, `
+		SELECT id, display_name, tg_username, COALESCE(avatar_url, '')
+		FROM app_user WHERE username = $1
+	`, username)
+	var u authpb.User
+	if err := row.Scan(&u.Id, &u.DisplayName, &u.Username, &u.AvatarUrl); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -222,7 +223,7 @@ func loadSongAssignments(ctx context.Context, db *sql.DB, songID string) ([]*son
 			User: &authpb.User{
 				Id:          uid,
 				DisplayName: display,
-				TgUsername:  username,
+				Username:    username,
 				AvatarUrl:   avatar,
 			},
 			JoinedAt: timestamppb.New(joined),
@@ -322,7 +323,7 @@ func loadEventParticipants(ctx context.Context, db *sql.DB, eventID string) ([]*
 			User: &authpb.User{
 				Id:          uid,
 				DisplayName: display,
-				TgUsername:  username,
+				Username:    username,
 				AvatarUrl:   avatar,
 			},
 			JoinedAt: timestamppb.New(joined),

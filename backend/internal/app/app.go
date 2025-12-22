@@ -30,6 +30,7 @@ func Run(ctx context.Context) error {
 		grpc.ChainUnaryInterceptor(
 			withBaseContext(ctx),
 			loggingInterceptor,
+			api.AuthInterceptor,
 		),
 	)
 
@@ -45,7 +46,7 @@ func Run(ctx context.Context) error {
 		// Handle CORS preflight explicitly.
 		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Grpc-Web, X-User-Agent, Authorization")
 			w.WriteHeader(http.StatusNoContent)
 			return

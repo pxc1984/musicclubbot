@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file user.proto.
  */
 export const file_user: GenFile = /*@__PURE__*/
-  fileDesc("Cgp1c2VyLnByb3RvEg5tdXNpY2NsdWIudXNlciJRCgRVc2VyEgoKAmlkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRITCgt0Z191c2VybmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJQhxaGm11c2ljY2x1YmJvdC9iYWNrZW5kL3Byb3RvYgZwcm90bzM");
+  fileDesc("Cgp1c2VyLnByb3RvEg5tdXNpY2NsdWIudXNlciJiCgRVc2VyEgoKAmlkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRIQCgh1c2VybmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJEhIKCnRlbGdyYW1faWQYBSABKARCHFoabXVzaWNjbHViYm90L2JhY2tlbmQvcHJvdG9iBnByb3RvMw");
 
 /**
  * Minimal user info for displaying assignments and ownership.
@@ -29,14 +29,19 @@ export type User = Message<"musicclub.user.User"> & {
   displayName: string;
 
   /**
-   * @generated from field: string tg_username = 3;
+   * @generated from field: string username = 3;
    */
-  tgUsername: string;
+  username: string;
 
   /**
    * @generated from field: string avatar_url = 4;
    */
   avatarUrl: string;
+
+  /**
+   * @generated from field: uint64 telgram_id = 5;
+   */
+  telgramId: bigint;
 };
 
 /**
