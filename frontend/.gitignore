@@ -17,3 +17,6 @@ playground-temp
 temp
 TODOs.md
 .eslintcache
+*.map
+*.d.ts
+*.js

@@ -1,23 +1,17 @@
 {
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
-    "target": "esnext",
-    "types": [],
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "strict": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ESNext",
     "jsx": "react-jsx",
+    "strict": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
     "skipLibCheck": true,
-    "allowArbitraryExtensions": true
+    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true
   }
 }
