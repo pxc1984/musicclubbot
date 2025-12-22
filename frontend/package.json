@@ -1,7 +1,7 @@
 {
   "name": "musicclub-frontend",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.10.2",
+    "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1",
     "@tanstack/react-query": "^5.90.12",
-    "@tma.js/sdk-react": "3.0.11",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

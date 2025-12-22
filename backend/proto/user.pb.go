@@ -26,8 +26,9 @@ type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	TgUsername    string                 `protobuf:"bytes,3,opt,name=tg_username,json=tgUsername,proto3" json:"tg_username,omitempty"`
+	Username      string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	AvatarUrl     string                 `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	TelgramId     uint64                 `protobuf:"varint,5,opt,name=telgram_id,json=telgramId,proto3" json:"telgram_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -76,9 +77,9 @@ func (x *User) GetDisplayName() string {
 	return ""
 }
 
-func (x *User) GetTgUsername() string {
+func (x *User) GetUsername() string {
 	if x != nil {
-		return x.TgUsername
+		return x.Username
 	}
 	return ""
 }
@@ -90,19 +91,27 @@ func (x *User) GetAvatarUrl() string {
 	return ""
 }
 
+func (x *User) GetTelgramId() uint64 {
+	if x != nil {
+		return x.TelgramId
+	}
+	return 0
+}
+
 var File_user_proto protoreflect.FileDescriptor
 
 const file_user_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"user.proto\x12\x0emusicclub.user\"y\n" +
+	"user.proto\x12\x0emusicclub.user\"\x93\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1f\n" +
-	"\vtg_username\x18\x03 \x01(\tR\n" +
-	"tgUsername\x12\x1d\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12\x1d\n" +
 	"\n" +
-	"avatar_url\x18\x04 \x01(\tR\tavatarUrlB\x1cZ\x1amusicclubbot/backend/protob\x06proto3"
+	"avatar_url\x18\x04 \x01(\tR\tavatarUrl\x12\x1d\n" +
+	"\n" +
+	"telgram_id\x18\x05 \x01(\x04R\ttelgramIdB\x1cZ\x1amusicclubbot/backend/protob\x06proto3"
 
 var (
 	file_user_proto_rawDescOnce sync.Once

@@ -8,6 +8,7 @@ option go_package = "musicclubbot/backend/proto";
 message User {
   string id = 1;
   string display_name = 2;
-  string tg_username = 3;
+  string username = 3;
   string avatar_url = 4;
+  uint64 telgram_id = 5;
 }

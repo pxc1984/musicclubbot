@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -36,22 +33,25 @@ func userIDFromCtx(ctx context.Context) (string, error) {
 	return userID, nil
 }
 
-func defaultJWTTTLSeconds() int64 {
-	if raw := os.Getenv("JWT_TTL_SECONDS"); raw != "" {
-		if v, err := strconv.ParseInt(raw, 10, 64); err == nil && v > 0 {
-			return v
-		}
-	}
-	return 7200
-}
-
-func loadUser(ctx context.Context, db *sql.DB, userID string) (*authpb.User, error) {
+func loadUserById(ctx context.Context, db *sql.DB, userID string) (*authpb.User, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, display_name, tg_username, COALESCE(avatar_url, '')
+		SELECT id, display_name, username, COALESCE(avatar_url, '')
 		FROM app_user WHERE id = $1
 	`, userID)
 	var u authpb.User
-	if err := row.Scan(&u.Id, &u.DisplayName, &u.TgUsername, &u.AvatarUrl); err != nil {
+	if err := row.Scan(&u.Id, &u.DisplayName, &u.Username, &u.AvatarUrl); err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func loadUserByUsername(ctx context.Context, db *sql.DB, username string) (*authpb.User, error) {
+	row := db.QueryRowContext(ctx, `
+		SELECT id, display_name, username, COALESCE(avatar_url, '')
+		FROM app_user WHERE username = $1
+	`, username)
+	var u authpb.User
+	if err := row.Scan(&u.Id, &u.DisplayName, &u.Username, &u.AvatarUrl); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -90,58 +90,6 @@ func loadPermissions(ctx context.Context, db *sql.DB, userID string) (*permissio
 	return &p, nil
 }
 
-func upsertUserByTelegram(ctx context.Context, db *sql.DB, tgUserID uint64, initData string) (userID string, isChatMember bool, err error) {
-	// For now initData is not verified. We just store a best-effort record.
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", false, err
-	}
-	defer tx.Rollback()
-
-	row := tx.QueryRowContext(ctx, `
-		SELECT id, is_chat_member FROM app_user WHERE tg_user_id = $1
-	`, tgUserID)
-	switch err := row.Scan(&userID, &isChatMember); err {
-	case nil:
-		// existing user
-	case sql.ErrNoRows:
-		display := fmt.Sprintf("tg_%d", tgUserID)
-		err = tx.QueryRowContext(ctx, `
-			INSERT INTO app_user (tg_user_id, display_name, is_chat_member)
-			VALUES ($1, $2, FALSE)
-			RETURNING id, is_chat_member
-		`, tgUserID, display).Scan(&userID, &isChatMember)
-		if err != nil {
-			return "", false, err
-		}
-	default:
-		return "", false, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return "", false, err
-	}
-	return userID, isChatMember, nil
-}
-
-func ensureJoinRequest(ctx context.Context, db *sql.DB, userID string) (token string, err error) {
-	row := db.QueryRowContext(ctx, `
-		SELECT token FROM join_request WHERE user_id = $1 AND status = 'pending'
-	`, userID)
-	switch err := row.Scan(&token); err {
-	case nil:
-		return token, nil
-	case sql.ErrNoRows:
-	default:
-		return "", err
-	}
-
-	err = db.QueryRowContext(ctx, `
-		INSERT INTO join_request (user_id) VALUES ($1) RETURNING token
-	`, userID).Scan(&token)
-	return token, err
-}
-
 func mapSongLinkType(dbValue string) songpb.SongLinkType {
 	switch strings.ToLower(dbValue) {
 	case "youtube":
@@ -168,14 +116,14 @@ func mapSongLinkKindToDB(kind songpb.SongLinkType) (string, error) {
 	}
 }
 
-func permissionAllowsSongEdit(perms *permissionpb.PermissionSet, ownerID, currentID string) bool {
+func permissionAllowsSongEdit(perms *permissionpb.PermissionSet, ownerID sql.NullString, currentID string) bool {
 	if perms == nil || perms.Songs == nil {
 		return false
 	}
 	if perms.Songs.EditAnySongs {
 		return true
 	}
-	return perms.Songs.EditOwnSongs && ownerID != "" && ownerID == currentID
+	return perms.Songs.EditOwnSongs && ownerID.String != "" && ownerID.String == currentID
 }
 
 func permissionAllowsJoinEdit(perms *permissionpb.PermissionSet, ownerID, currentID string) bool {
@@ -198,11 +146,12 @@ func permissionAllowsTracklistEdit(perms *permissionpb.PermissionSet) bool {
 
 func loadSongDetails(ctx context.Context, db *sql.DB, songID, currentUserID string) (*songpb.SongDetails, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, title, artist, description, link_kind, link_url, COALESCE(created_by, '')
+		SELECT id, title, artist, description, link_kind, link_url, COALESCE(created_by, NULL)
 		FROM song WHERE id = $1
 	`, songID)
 	var s songpb.Song
-	var linkKind, linkURL, creatorID string
+	var linkKind, linkURL string
+	var creatorID sql.NullString
 	if err := row.Scan(&s.Id, &s.Title, &s.Artist, &s.Description, &linkKind, &linkURL, &creatorID); err != nil {
 		return nil, err
 	}
@@ -252,7 +201,7 @@ func loadSongRoles(ctx context.Context, db *sql.DB, songID string) ([]string, er
 func loadSongAssignments(ctx context.Context, db *sql.DB, songID string) ([]*songpb.RoleAssignment, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT sra.role,
-		       au.id, au.display_name, COALESCE(au.tg_username, ''), COALESCE(au.avatar_url, ''),
+		       au.id, au.display_name, COALESCE(au.username, ''), COALESCE(au.avatar_url, ''),
 		       sra.joined_at
 		FROM song_role_assignment sra
 		JOIN app_user au ON sra.user_id = au.id
@@ -275,7 +224,7 @@ func loadSongAssignments(ctx context.Context, db *sql.DB, songID string) ([]*son
 			User: &authpb.User{
 				Id:          uid,
 				DisplayName: display,
-				TgUsername:  username,
+				Username:    username,
 				AvatarUrl:   avatar,
 			},
 			JoinedAt: timestamppb.New(joined),
@@ -352,7 +301,7 @@ func loadTracklist(ctx context.Context, db *sql.DB, eventID string) (*eventpb.Tr
 func loadEventParticipants(ctx context.Context, db *sql.DB, eventID string) ([]*songpb.RoleAssignment, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT ep.role,
-		       au.id, au.display_name, COALESCE(au.tg_username, ''), COALESCE(au.avatar_url, ''),
+		       au.id, au.display_name, COALESCE(au.username, ''), COALESCE(au.avatar_url, ''),
 		       ep.joined_at
 		FROM event_participant ep
 		JOIN app_user au ON ep.user_id = au.id
@@ -375,7 +324,7 @@ func loadEventParticipants(ctx context.Context, db *sql.DB, eventID string) ([]*
 			User: &authpb.User{
 				Id:          uid,
 				DisplayName: display,
-				TgUsername:  username,
+				Username:    username,
 				AvatarUrl:   avatar,
 			},
 			JoinedAt: timestamppb.New(joined),

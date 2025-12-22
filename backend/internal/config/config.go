@@ -6,18 +6,21 @@ import (
 
 // Config groups runtime configuration for the backend service.
 type Config struct {
-	GRPCPort string
-	DbUrl    string
+	GRPCPort     string
+	DbUrl        string
+	JwtSecretKey []byte
 }
 
 // Load reads configuration from environment with sane defaults.
 func Load() Config {
 	port := getenv("GRPC_PORT", "6969")
 	url := getenv("POSTGRES_URL", "postgres://user:password@localhost:5432/musicclubbot")
+	jwtSecret := []byte(getenv("JWT_SECRET", "change-this-in-prod"))
 
 	return Config{
-		GRPCPort: port,
-		DbUrl:    url,
+		GRPCPort:     port,
+		DbUrl:        url,
+		JwtSecretKey: jwtSecret,
 	}
 }
 
