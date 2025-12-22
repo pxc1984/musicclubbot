@@ -1,7 +1,9 @@
 version: v2
 inputs:
-  - directory: ../api/proto
+  - directory: ../proto
 plugins:
   - local: protoc-gen-es
     out: src/gen
-    opt: target=ts
+    opt: 
+      - target=ts
+      - import_extension=ts
