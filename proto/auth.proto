@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package musicclub.auth;
+
+import "google/protobuf/empty.proto";
+import "permissions.proto";
+import "user.proto";
+
+// Authentication and membership gating for the mini app.
+service AuthService {
+  // Telegram OAuth (Mini App) login. Returns JWT and membership info.
+  rpc LoginWithTelegram(TgLoginRequest) returns (AuthSession);
+
+  // Returns current user profile and permissions for UI gating.
+  rpc GetProfile(google.protobuf.Empty) returns (ProfileResponse);
+}
+
+message TgLoginRequest {
+  // Raw init data from Telegram Mini App (used for signature verification).
+  string init_data = 1;
+
+  // Optional explicit Telegram user id (if provided by the client).
+  uint64 tg_user_id = 2;
+}
+
+message AuthSession {
+  // JWT access token.
+  string access_token = 1;
+
+  // Token issued-at and expiration (unix seconds).
+  uint64 iat = 2;
+  uint64 exp = 3;
+
+  // Whether the user is already a member of the music club chat.
+  bool is_chat_member = 4;
+
+  // If not a member, link to request manual approval to join the chat.
+  string join_request_url = 5;
+
+  // Convenience: current user's profile data.
+  musicclub.user.User profile = 6;
+
+  // Permissions snapshot for the session.
+  musicclub.permissions.PermissionSet permissions = 7;
+}
+
+message ProfileResponse {
+  musicclub.user.User profile = 1;
+  musicclub.permissions.PermissionSet permissions = 2;
+}

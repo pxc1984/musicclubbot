@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package musicclub.user;
+
+// Minimal user info for displaying assignments and ownership.
+message User {
+  string id = 1;
+  string display_name = 2;
+  string tg_username = 3;
+  string avatar_url = 4;
+}
