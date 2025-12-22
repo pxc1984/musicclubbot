@@ -10,12 +10,17 @@ COPY .env.example ./
 
 ARG VITE_GRPC_HOST
 ENV VITE_GRPC_HOST=${VITE_GRPC_HOST}
+
 RUN npm run build
 
-# Serve static assets with nginx
-FROM nginx:1.25-alpine AS runtime
-COPY --from=build /app/dist /usr/share/nginx/html
 
-RUN printf 'server {\n  listen 80;\n  server_name _;\n  root /usr/share/nginx/html;\n  include /etc/nginx/mime.types;\n  location / {\n    try_files $uri $uri/ /index.html;\n  }\n}\n' > /etc/nginx/conf.d/default.conf
+FROM node:20-alpine AS runtime
+WORKDIR /app
 
-EXPOSE 80
+RUN npm install -g serve
+
+COPY --from=build /app/dist ./dist
+
+EXPOSE 5173
+
+CMD ["serve", "-s", "dist", "-l", "5173"]
