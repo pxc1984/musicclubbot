@@ -81,6 +81,11 @@ async def auth_confirm(token: UUID, telegram_user_id: int) -> bool:
             "UPDATE app_user SET tg_user_id = %s WHERE id = %s",
             (telegram_user_id, str(user_id)),
         )
+        execute(
+            DB_CONN,
+            "UPDATE user_permissions SET edit_own_participation = TRUE, edit_own_songs = TRUE WHERE user_id = %s",
+            (str(user_id),),
+        )
     except Exception as exc:
         logger.error("Failed to update auth linking for token %s: %s", token, exc)
         return False
@@ -114,9 +119,7 @@ async def cmd_start_with_args(message: Message, command: CommandObject):
     ok = await auth_confirm(token, message.from_user.id)
 
     if ok:
-        await message.answer(
-            _("✅ Authentication successful! You may return to the web app.")
-        )
+        await message.answer(_("✅ Authentication successful! You may return to the web app."))
     else:
         await message.answer(_("❌ Authentication failed or expired."))
 
@@ -126,9 +129,7 @@ async def cmd_start(message: Message):
     logger.info("Received command /start without args")
 
     await message.answer(
-        _("Welcome! Click the button below to open the webapp:\n{url}").format(
-            url=WEBAPP_URL
-        ),
+        _("Welcome! Click the button below to open the webapp:\n{url}").format(url=WEBAPP_URL),
     )
 
 
