@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code, ConnectError } from "@connectrpc/connect";
 
-import { getProfile, login, logout, register } from "../services/api";
+import { getProfile, getTgLoginLink, login, logout, register } from "../services/api";
 import { setTokenPair } from "../services/config";
 import { CredentialsSchema, RegisterUserRequestSchema } from "../proto/auth_pb";
 import SongList from "./SongList";
@@ -23,6 +23,7 @@ const AuthGate: React.FC = () => {
 	const [avatarUrl, setAvatarUrl] = useState("");
 	const [authError, setAuthError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const [tgLinkError, setTgLinkError] = useState<string | null>(null);
 
 	const profileQuery = useQuery({
 		queryKey: ["profile"],
@@ -34,6 +35,9 @@ const AuthGate: React.FC = () => {
 	const profile = profileQuery.data?.profile as User | undefined;
 	const permissions = profileQuery.data?.permissions as PermissionSet | undefined;
 	const [isProfileOpen, setProfileOpen] = useState(false);
+	const tgLoginLinkMutation = useMutation({
+		mutationFn: () => getTgLoginLink(profile ? { id: profile.id } : undefined),
+	});
 
 	const handleAuthSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -273,6 +277,39 @@ const AuthGate: React.FC = () => {
 				Собираем сет-листы, треклисты и роли для ближайших мероприятий.
 			</p>
 			{profileQuery.data && "isChatMember" in profileQuery.data ? null : null}
+			{profile && !profile.telegramId && (
+				<div className="pill" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+					<div style={{ flex: 1, minWidth: 0 }}>
+						<div style={{ fontWeight: 600, marginBottom: 4 }}>Привяжите Telegram</div>
+						<small style={{ color: "var(--muted)" }}>Получите ссылку для авторизации в боте</small>
+						{tgLinkError && (
+							<div style={{ color: "var(--danger)", marginTop: 8 }}>{tgLinkError}</div>
+						)}
+					</div>
+					<button
+						className="button"
+						type="button"
+						disabled={tgLoginLinkMutation.isPending}
+						onClick={async () => {
+							setTgLinkError(null);
+							try {
+								const res = await tgLoginLinkMutation.mutateAsync();
+								if (res.loginLink) {
+									window.open(res.loginLink, "_blank", "noopener");
+								}
+							} catch (err: any) {
+								if (err instanceof ConnectError) {
+									setTgLinkError(err.message);
+								} else {
+									setTgLinkError((err as Error).message);
+								}
+							}
+						}}
+					>
+						{tgLoginLinkMutation.isPending ? "Получаем..." : "Получить ссылку"}
+					</button>
+				</div>
+			)}
 		</div>
 	);
 

@@ -11,6 +11,7 @@ import { AuthService, ProfileResponseSchema, TgLoginRequestSchema } from "../pro
 import { SongService, CreateSongRequestSchema, JoinRoleRequestSchema, LeaveRoleRequestSchema, ListSongsRequestSchema, SongIdSchema, UpdateSongRequestSchema } from "../proto/song_pb";
 import { EventService, CreateEventRequestSchema, EventIdSchema, ListEventsRequestSchema, SetTracklistRequestSchema, UpdateEventRequestSchema } from "../proto/event_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { UserSchema, type User } from "../proto/user_pb";
 
 export const authClient = createClient(AuthService, transport);
 export const songClient = createClient(SongService, transport);
@@ -31,6 +32,10 @@ export const logout = () => {
 	clearTokenPair();
 	window.location.href = "/";
 };
+
+export function getTgLoginLink(user?: Partial<User>) {
+	return authClient.getTgLoginLink(create(UserSchema, (user ?? {}) as any));
+}
 
 export function getProfile() {
 	return authClient.getProfile({});

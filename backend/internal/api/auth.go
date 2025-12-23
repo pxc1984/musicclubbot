@@ -500,54 +500,21 @@ func (s *AuthService) GetTgLoginLink(ctx context.Context, req *userpb.User) (*au
 		return nil, status.Error(codes.AlreadyExists, "Telegram already linked to this account")
 	}
 
-	// Generate a unique login token
-	loginToken, err := generateRefreshToken()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "generate login token: %v", err)
-	}
-
-	// Store the login token in tg_auth_session table
-	// Note: You need to create tg_auth_session table as referenced in your schema
-	_, err = db.ExecContext(ctx, `
-		INSERT INTO tg_auth_session (id, user_id, tg_user_id, success, created_at)
-		VALUES (gen_random_uuid(), $1, NULL, FALSE, NOW())`,
+	// Store the login token in tg_auth_user table
+	var authId uuid.UUID
+	err = db.QueryRowContext(ctx, `
+		INSERT INTO tg_auth_user (user_id, tg_user_id)
+		VALUES ($1, NULL)
+		RETURNING (id)`,
 		userID,
-	)
+	).Scan(&authId)
 
 	if err != nil {
-		// Table might not exist, create it
-		if strings.Contains(err.Error(), "does not exist") {
-			_, createErr := db.ExecContext(ctx, `
-				CREATE TABLE IF NOT EXISTS tg_auth_session (
-					id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-					user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-					tg_user_id BIGINT,
-					success BOOLEAN NOT NULL DEFAULT FALSE,
-					created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-				);
-				CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_session_user ON tg_auth_session (user_id);
-			`)
-			if createErr != nil {
-				return nil, status.Errorf(codes.Internal, "create tg_auth_session table: %v", createErr)
-			}
-
-			// Retry insert
-			_, err = db.ExecContext(ctx, `
-				INSERT INTO tg_auth_session (user_id, success)
-				VALUES ($1, FALSE)`,
-				userID,
-			)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "store tg auth session: %v", err)
-			}
-		} else {
-			return nil, status.Errorf(codes.Internal, "store tg auth session: %v", err)
-		}
+		return nil, status.Errorf(codes.Internal, "store tg auth session: %v", err)
 	}
 
-	// Generate Telegram bot deep link
-	botUsername := "your_musicclub_bot" // Replace with your bot username
-	loginLink := fmt.Sprintf("https://t.me/%s?start=auth_%s", botUsername, loginToken)
+	cfg := ctx.Value("cfg").(config.Config)
+	loginLink := fmt.Sprintf("https://t.me/%s?start=auth_%s", cfg.BotUsername, authId)
 
 	return &authpb.TgLoginLinkResponse{
 		LoginLink: loginLink,
