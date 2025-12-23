@@ -106,11 +106,11 @@ CREATE INDEX IF NOT EXISTS idx_event_participant_user ON event_participant (user
 CREATE TABLE IF NOT EXISTS tg_auth_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-    tg_user_id BIGINT NOT NULL,
+    tg_user_id BIGINT,
     success BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_user_tg_user ON tg_auth_user (tg_user_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_session_user ON tg_auth_session (tg_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_auth_session_user ON tg_auth_user (tg_user_id);
 -- Refresh tokens table
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
