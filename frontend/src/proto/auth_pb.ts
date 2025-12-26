@@ -2,15 +2,15 @@
 // @generated from file auth.proto (package musicclub.auth, syntax proto3)
 /* eslint-disable */
 
-import type {GenFile, GenMessage, GenService} from "@bufbuild/protobuf/codegenv2";
-import {fileDesc, messageDesc, serviceDesc} from "@bufbuild/protobuf/codegenv2";
-import type {EmptySchema} from "@bufbuild/protobuf/wkt";
-import {file_google_protobuf_empty} from "@bufbuild/protobuf/wkt";
-import type {PermissionSet} from "./permissions_pb.ts";
-import {file_permissions} from "./permissions_pb.ts";
-import type {User, UserSchema} from "./user_pb.ts";
-import {file_user} from "./user_pb.ts";
-import type {Message} from "@bufbuild/protobuf";
+import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { EmptySchema } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_empty } from "@bufbuild/protobuf/wkt";
+import type { PermissionSet } from "./permissions_pb.ts";
+import { file_permissions } from "./permissions_pb.ts";
+import type { User, UserSchema } from "./user_pb.ts";
+import { file_user } from "./user_pb.ts";
+import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file auth.proto.
