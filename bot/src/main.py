@@ -28,7 +28,7 @@ def getenv(name: str):
 
 DB_URL = getenv("POSTGRES_URL")
 BOT_TOKEN = getenv("BOT_TOKEN")
-WEBAPP_URL = os.getenv("WEBAPP_URL", "http://localhost:5173")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "http://localhost:5173") # должен быть https, используйте тоннель
 DB_CONN = create_connection(DB_URL)
 
 
@@ -166,7 +166,10 @@ async def main():
         level=os.environ.get("LOGLEVEL", "INFO").upper(),
         format="%(levelname)s:\t[%(asctime)s] - %(message)s",
     )
+    logger.info("Starting polling for bot")
+
     bot = Bot(BOT_TOKEN)
+
     dp = Dispatcher()
 
     dp.message.middleware(MyI18nMiddleware(i18n))
