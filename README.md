@@ -86,7 +86,7 @@ docker compose -f docker-compose.yml up --build -d
 2. **Frontend**: Откройте в браузере ваш frontend tunnel URL - должно загрузиться приложение и сказать что его можно использовать только в телеграме 
 3. **Bot**: Откройте своего бота в Telegram и нажмите кнопку Menu/WebApp - должно открыться приложение
 пример успешных логов docker compose 
-![alt text](image.png)
+![alt text](docs/image.png)
 ### 6. Просмотр логов
 
 Логи всех сервисов:
