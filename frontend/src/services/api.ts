@@ -57,6 +57,7 @@ export function createSong(payload: {
 	linkUrl: string;
 	linkKind: number;
 	roles: string[];
+	thumbnailUrl?: string;
 }) {
 	return songClient.createSong(
 		{
@@ -65,6 +66,7 @@ export function createSong(payload: {
 			description: payload.description ?? "",
 			link: { url: payload.linkUrl, kind: payload.linkKind },
 			availableRoles: payload.roles,
+			thumbnailUrl: payload.thumbnailUrl ?? "",
 		}
 	);
 }
@@ -77,6 +79,7 @@ export function updateSong(payload: {
 	linkUrl: string;
 	linkKind: number;
 	roles: string[];
+	thumbnailUrl?: string;
 }) {
 	return songClient.updateSong(
 		{
@@ -86,6 +89,7 @@ export function updateSong(payload: {
 			description: payload.description ?? "",
 			link: { url: payload.linkUrl, kind: payload.linkKind },
 			availableRoles: payload.roles,
+			thumbnailUrl: payload.thumbnailUrl ?? "",
 		},
 	);
 }

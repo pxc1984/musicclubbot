@@ -38,7 +38,7 @@ func (s *SongService) ListSongs(ctx context.Context, req *proto.ListSongsRequest
 	}
 
 	query := `
-		SELECT id, title, artist, description, link_kind, link_url, COALESCE(created_by, NULL)
+		SELECT id, title, artist, description, link_kind, link_url, COALESCE(created_by, NULL), COALESCE(thumbnail_url, '')
 		FROM song
 	` + where + `
 		ORDER BY created_at DESC
@@ -57,18 +57,28 @@ func (s *SongService) ListSongs(ctx context.Context, req *proto.ListSongsRequest
 	var songs []*proto.Song
 	for rows.Next() {
 		var sng proto.Song
-		var linkKind, linkURL string
+		var linkKind, linkURL, thumbnailURL string
 		var creatorID sql.NullString
-		if err := rows.Scan(&sng.Id, &sng.Title, &sng.Artist, &sng.Description, &linkKind, &linkURL, &creatorID); err != nil {
+		if err := rows.Scan(&sng.Id, &sng.Title, &sng.Artist, &sng.Description, &linkKind, &linkURL, &creatorID, &thumbnailURL); err != nil {
 			return nil, status.Errorf(codes.Internal, "scan song: %v", err)
 		}
 		sng.Link = &proto.SongLink{Kind: helpers.MapSongLinkType(linkKind), Url: linkURL}
+		sng.ThumbnailUrl = thumbnailURL
 		roles, err := helpers.LoadSongRoles(ctx, db, sng.Id)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "load roles: %v", err)
 		}
 		sng.AvailableRoles = roles
 		sng.EditableByMe = helpers.PermissionAllowsSongEdit(perms, creatorID, currentUserID)
+
+		// Count participants assigned to this song
+		var assignmentCount int32
+		countQuery := `SELECT COUNT(*) FROM song_role_assignment WHERE song_id = $1`
+		if err := db.QueryRowContext(ctx, countQuery, sng.Id).Scan(&assignmentCount); err != nil {
+			return nil, status.Errorf(codes.Internal, "count assignments: %v", err)
+		}
+		sng.AssignmentCount = assignmentCount
+
 		songs = append(songs, &sng)
 	}
 	if err := rows.Err(); err != nil {

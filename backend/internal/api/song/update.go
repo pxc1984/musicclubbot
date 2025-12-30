@@ -41,6 +41,9 @@ func (s *SongService) UpdateSong(ctx context.Context, req *proto.UpdateSongReque
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	// Auto-extract or use custom thumbnail URL
+	thumbnailURL := helpers.NormalizeThumbnailURL(req.GetThumbnailUrl(), linkKind, req.GetLink().GetUrl())
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "begin tx: %v", err)
@@ -49,9 +52,9 @@ func (s *SongService) UpdateSong(ctx context.Context, req *proto.UpdateSongReque
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE song
-		SET title = $1, artist = $2, description = $3, link_kind = $4, link_url = $5, updated_at = NOW()
-		WHERE id = $6
-	`, req.GetTitle(), req.GetArtist(), req.GetDescription(), linkKind, req.GetLink().GetUrl(), req.GetId()); err != nil {
+		SET title = $1, artist = $2, description = $3, link_kind = $4, link_url = $5, thumbnail_url = $6, updated_at = NOW()
+		WHERE id = $7
+	`, req.GetTitle(), req.GetArtist(), req.GetDescription(), linkKind, req.GetLink().GetUrl(), thumbnailURL, req.GetId()); err != nil {
 		return nil, status.Errorf(codes.Internal, "update song: %v", err)
 	}
 

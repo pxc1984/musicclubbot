@@ -58,6 +58,12 @@ message Song {
 
   // Whether current user may edit this song.
   bool editable_by_me = 7;
+
+  // Number of participants currently assigned to this song.
+  int32 assignment_count = 8;
+
+  // Thumbnail image URL (auto-extracted from link or custom).
+  string thumbnail_url = 9;
 }
 
 message SongDetails {
@@ -90,6 +96,7 @@ message CreateSongRequest {
   SongLink link = 3;
   string description = 4;
   repeated string available_roles = 5;
+  string thumbnail_url = 6;
 }
 
 message UpdateSongRequest {
@@ -99,6 +106,7 @@ message UpdateSongRequest {
   SongLink link = 4;
   string description = 5;
   repeated string available_roles = 6;
+  string thumbnail_url = 7;
 }
 
 message JoinRoleRequest {

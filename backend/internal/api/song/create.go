@@ -31,6 +31,9 @@ func (s *SongService) CreateSong(ctx context.Context, req *proto.CreateSongReque
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	// Auto-extract or use custom thumbnail URL
+	thumbnailURL := helpers.NormalizeThumbnailURL(req.GetThumbnailUrl(), linkKind, req.GetLink().GetUrl())
+
 	var songID string
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -39,10 +42,10 @@ func (s *SongService) CreateSong(ctx context.Context, req *proto.CreateSongReque
 	defer tx.Rollback()
 
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO song (title, artist, description, link_kind, link_url, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO song (title, artist, description, link_kind, link_url, created_by, thumbnail_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
-	`, req.GetTitle(), req.GetArtist(), req.GetDescription(), linkKind, req.GetLink().GetUrl(), userID).Scan(&songID)
+	`, req.GetTitle(), req.GetArtist(), req.GetDescription(), linkKind, req.GetLink().GetUrl(), userID, thumbnailURL).Scan(&songID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "insert song: %v", err)
 	}

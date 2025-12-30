@@ -127,14 +127,54 @@ const SongRow: React.FC<{ song: Song; onOpen: () => void }> = ({ song, onOpen })
 		return map[kind as SongLinkType] ?? "ссылка";
 	}, [song.link?.kind]);
 
+	const totalRoles = song.availableRoles?.length || 0;
+	const assignedCount = song.assignmentCount || 0;
+	const isFull = assignedCount >= totalRoles;
+
 	return (
 		<button className="button secondary" style={{ width: "100%", textAlign: "left" }} onClick={onOpen}>
-			<div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-				<div>
-					<div style={{ fontWeight: 700 }}>{song.title}</div>
-					<div style={{ color: "var(--muted)", fontSize: 14 }}>{song.artist}</div>
+			<div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+				{song.thumbnailUrl && (
+					<img
+						src={song.thumbnailUrl}
+						alt={song.title}
+						style={{
+							width: 80,
+							height: 60,
+							objectFit: "cover",
+							borderRadius: 4,
+							flexShrink: 0
+						}}
+						onError={(e) => {
+							// Fallback: hide image if it fails to load
+							e.currentTarget.style.display = "none";
+						}}
+					/>
+				)}
+				<div style={{ flex: 1, minWidth: 0 }}>
+					<div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song.title}</div>
+					<div style={{ color: "var(--muted)", fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song.artist}</div>
 				</div>
-				<span className="pill">{badge}</span>
+				<div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+					<span style={{
+						fontSize: 12,
+						padding: "2px 6px",
+						borderRadius: 4,
+						backgroundColor: isFull ? "var(--danger-bg)" : "var(--accent-bg)",
+						color: isFull ? "var(--danger)" : "var(--accent)",
+						fontWeight: 600
+					}}>
+						{assignedCount}/{totalRoles}
+					</span>
+					<span style={{
+						fontSize: 11,
+						color: isFull ? "var(--danger)" : "var(--accent)",
+						fontWeight: 600
+					}}>
+						{isFull ? "укомплектовано" : "есть места"}
+					</span>
+					<span className="pill">{badge}</span>
+				</div>
 			</div>
 		</button>
 	);

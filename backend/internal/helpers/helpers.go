@@ -144,16 +144,17 @@ func PermissionAllowsTracklistEdit(perms *proto.PermissionSet) bool {
 
 func LoadSongDetails(ctx context.Context, db *sql.DB, songID, currentUserID string) (*proto.SongDetails, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, title, artist, description, link_kind, link_url, COALESCE(created_by, NULL)
+		SELECT id, title, artist, description, link_kind, link_url, COALESCE(created_by, NULL), COALESCE(thumbnail_url, '')
 		FROM song WHERE id = $1
 	`, songID)
 	var s proto.Song
-	var linkKind, linkURL string
+	var linkKind, linkURL, thumbnailURL string
 	var creatorID sql.NullString
-	if err := row.Scan(&s.Id, &s.Title, &s.Artist, &s.Description, &linkKind, &linkURL, &creatorID); err != nil {
+	if err := row.Scan(&s.Id, &s.Title, &s.Artist, &s.Description, &linkKind, &linkURL, &creatorID, &thumbnailURL); err != nil {
 		return nil, err
 	}
 	s.Link = &proto.SongLink{Kind: MapSongLinkType(linkKind), Url: linkURL}
+	s.ThumbnailUrl = thumbnailURL
 
 	roles, err := LoadSongRoles(ctx, db, songID)
 	if err != nil {

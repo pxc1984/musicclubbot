@@ -9,6 +9,7 @@ type Props = {
 		linkUrl: string;
 		linkKind: SongLinkType;
 		roles: string[];
+		thumbnailUrl?: string;
 	}) => Promise<void>;
 };
 
@@ -20,6 +21,7 @@ const CreateSongForm: React.FC<Props> = ({ onSubmit }) => {
 		linkUrl: "",
 		linkKind: 1 as SongLinkType,
 		roles: "вокал, гитара, бас, барабаны",
+		thumbnailUrl: "",
 	});
 	const [isSaving, setIsSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -36,8 +38,9 @@ const CreateSongForm: React.FC<Props> = ({ onSubmit }) => {
 				linkUrl: form.linkUrl,
 				linkKind: form.linkKind,
 				roles: form.roles.split(",").map((r) => r.trim()).filter(Boolean),
+				thumbnailUrl: form.thumbnailUrl,
 			});
-			setForm({ ...form, title: "", artist: "", description: "", linkUrl: "" });
+			setForm({ ...form, title: "", artist: "", description: "", linkUrl: "", thumbnailUrl: "" });
 		} catch (err) {
 			setError((err as Error).message);
 		} finally {

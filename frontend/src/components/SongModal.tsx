@@ -14,6 +14,7 @@ type Props = {
 		linkUrl: string;
 		linkKind: SongLinkType;
 		roles: string[];
+		thumbnailUrl?: string;
 	}) => Promise<void>;
 	onDelete: () => Promise<void>;
 	canEdit: boolean;
@@ -30,13 +31,10 @@ const SongModal: React.FC<Props> = ({ details, onClose, onJoin, onLeave, onUpdat
 		linkUrl: song?.link?.url ?? "",
 		linkKind: (song?.link?.kind ?? 0) as SongLinkType,
 		roles: song?.availableRoles ?? [],
+		thumbnailUrl: song?.thumbnailUrl ?? "",
 	});
 
 	const assignments = details.assignments ?? [];
-	const isAssigned = useMemo(() => {
-		if (!currentUserId) return false;
-		return assignments.some((a) => a.user?.id === currentUserId);
-	}, [assignments, currentUserId]);
 
 	const linkLabel = useMemo(() => {
 		const map: Record<number, string> = {
@@ -68,6 +66,22 @@ const SongModal: React.FC<Props> = ({ details, onClose, onJoin, onLeave, onUpdat
 					</button>
 				</div>
 				<div style={{ color: "var(--muted)", marginBottom: 10 }}>{song?.artist}</div>
+				{song?.thumbnailUrl && (
+					<img
+						src={song.thumbnailUrl}
+						alt={song.title}
+						style={{
+							width: "100%",
+							maxHeight: 240,
+							objectFit: "cover",
+							borderRadius: 8,
+							marginBottom: 12
+						}}
+						onError={(e) => {
+							e.currentTarget.style.display = "none";
+						}}
+					/>
+				)}
 				{song?.link?.url && (
 					<a href={song.link.url} target="_blank" rel="noreferrer" className="pill">
 						{linkLabel}
@@ -76,16 +90,33 @@ const SongModal: React.FC<Props> = ({ details, onClose, onJoin, onLeave, onUpdat
 				{song?.description && <p style={{ marginTop: 12, lineHeight: 1.5 }}>{song.description}</p>}
 
 				<div style={{ marginTop: 14 }}>
-					<div className="card-title" style={{ marginBottom: 8 }}>
-						Роли
+					<div className="card-title" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+						<span>Роли</span>
+						<span style={{
+							fontSize: 12,
+							padding: "2px 8px",
+							borderRadius: 4,
+							backgroundColor: assignments.length >= (song?.availableRoles?.length || 0) ? "var(--danger-bg)" : "var(--accent-bg)",
+							color: assignments.length >= (song?.availableRoles?.length || 0) ? "var(--danger)" : "var(--accent)"
+						}}>
+							{assignments.length}/{song?.availableRoles?.length || 0}
+						</span>
+						<span style={{
+							fontSize: 11,
+							color: assignments.length >= (song?.availableRoles?.length || 0) ? "var(--danger)" : "var(--accent)",
+							fontWeight: 600
+						}}>
+							{assignments.length >= (song?.availableRoles?.length || 0) ? "укомплектовано" : "есть места"}
+						</span>
 					</div>
 					<div className="tags">
-						{song?.availableRoles?.map((role: string) => {
+						{song?.availableRoles?.map((role: string, index: number) => {
 							const members = assignments.filter((a) => a.role === role);
 							const isMine = members.some((m) => m.user?.id === currentUserId);
+							const isFull = assignments.length >= (song?.availableRoles?.length || 0);
 							return (
-								<div key={role} className="pill" style={{ borderColor: isMine ? "var(--accent)" : "var(--border)" }}>
-									<div>
+								<div key={`${role}-${index}`} className="pill" style={{ borderColor: isMine ? "var(--accent)" : "var(--border)" }}>
+									<div style={{ flex: 1 }}>
 										<div style={{ fontWeight: 700 }}>{role}</div>
 										<div style={{ fontSize: 12, color: "var(--muted)" }}>
 											{members.length === 0 ? "Свободно" : members.map((m) => m.user?.displayName).join(", ")}
@@ -96,7 +127,7 @@ const SongModal: React.FC<Props> = ({ details, onClose, onJoin, onLeave, onUpdat
 											Снять участие
 										</button>
 									) : (
-										<button className="button" onClick={() => onJoin(role)}>
+										<button className="button" onClick={() => onJoin(role)} disabled={isFull}>
 											Присоединиться
 										</button>
 									)}
