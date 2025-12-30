@@ -10,9 +10,11 @@
   adminer:
     image: adminer
     restart: unless-stopped
+    ports:
+      - "4322:8080"
 
   backend:
-    image: mikeverete/musicclub-backend:latest
+    image: pacable/musicclub-backend:latest
     restart: unless-stopped
     env_file:
       - .env
@@ -20,12 +22,12 @@
       - db
 
   frontend:
-    image: mikeverete/musicclub-frontend:latest
+    image: pacable/musicclub-frontend:latest
     env_file:
       - .env
 
   bot:
-    image: mikeverete/musicclub-bot:latest
+    image: pacable/musicclub-bot:latest
     restart: unless-stopped
     env_file:
       - .env
