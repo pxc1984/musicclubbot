@@ -10,4 +10,7 @@ public class ApplicationUser : IdentityUser<Guid>
     public string? AvatarUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+
+    public ICollection<RoleTitle> PreferredRoles = [];
+    public UserPreferences? Preferences;
 }

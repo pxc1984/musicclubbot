@@ -4,6 +4,7 @@ using CuMusicClub.Domain.Enums;
 using CuMusicClub.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CuMusicClub.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902090638_RoleTitle")]
+    partial class RoleTitle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -697,29 +700,6 @@ namespace CuMusicClub.Infrastructure.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("CuMusicClub.Domain.Entities.UserPreferences", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<bool>("AllowAdding")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("allow_adding");
-
-                    b.Property<bool>("AllowRemoving")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("allow_removing");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("user_preferences", (string)null);
-                });
-
             modelBuilder.Entity("CuMusicClub.Domain.Entities.UserSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1083,17 +1063,6 @@ namespace CuMusicClub.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CuMusicClub.Domain.Entities.UserPreferences", b =>
-                {
-                    b.HasOne("CuMusicClub.Domain.Entities.ApplicationUser", "User")
-                        .WithOne("Preferences")
-                        .HasForeignKey("CuMusicClub.Domain.Entities.UserPreferences", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("CuMusicClub.Domain.Entities.UserSession", b =>
                 {
                     b.HasOne("CuMusicClub.Domain.Entities.RefreshToken", "RefreshToken")
@@ -1176,11 +1145,6 @@ namespace CuMusicClub.Infrastructure.Data.Migrations
                         .HasForeignKey("PreferredRoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("CuMusicClub.Domain.Entities.ApplicationUser", b =>
-                {
-                    b.Navigation("Preferences");
                 });
 
             modelBuilder.Entity("CuMusicClub.Domain.Entities.Event", b =>

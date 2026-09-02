@@ -14,6 +14,10 @@ public sealed record UserProfileDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
+public sealed record UserPreferencesDto(
+    bool AllowAdding,
+    bool AllowRemoving);
+
 public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt);
 
 public sealed record AuthSessionDto(

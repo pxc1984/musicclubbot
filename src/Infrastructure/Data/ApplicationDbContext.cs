@@ -4,6 +4,7 @@ using CuMusicClub.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Telegram.Bot.Types;
 
 namespace CuMusicClub.Infrastructure.Data;
 
@@ -63,6 +64,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         get { return Set<SongTopic>(); }
     }
 
+    public DbSet<RoleTitle> RoleTitles
+    {
+        get { return Set<RoleTitle>(); }
+    }
+
+    public DbSet<UserPreferences> UserPreferencesEnumerable
+    {
+        get { return Set<UserPreferences>(); }
+    }
+
     IQueryable<ApplicationUser> IApplicationDbContext.Users
     {
         get { return Users; }
@@ -116,6 +127,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     IQueryable<SongTopic> IApplicationDbContext.SongTopics
     {
         get { return SongTopics; }
+    }
+
+    IQueryable<RoleTitle> IApplicationDbContext.RoleTitles
+    {
+        get { return RoleTitles; }
+    }
+
+    IQueryable<UserPreferences> IApplicationDbContext.UserPreferencesEnumerable
+    {
+        get { return UserPreferencesEnumerable; }
     }
 
     void IApplicationDbContext.Add(object entity)

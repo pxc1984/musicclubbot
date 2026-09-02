@@ -2,6 +2,7 @@ using CuMusicClub.Web.Endpoints;
 using CuMusicClub.Web.Endpoints.v1.Auth;
 using CuMusicClub.Web.Endpoints.v1.Data;
 using CuMusicClub.Web.Endpoints.v1.Songs;
+using CuMusicClub.Web.Endpoints.v1.Users;
 
 namespace CuMusicClub.Web.Infrastructure;
 
@@ -22,6 +23,10 @@ public static class WebApplicationExtensions
         Data.Map(v1
             .MapGroup("/data")
             .WithTags("Data"));
+
+        Users.Map(v1
+            .MapGroup("/users")
+            .WithTags("Users"));
 
         return app;
     }

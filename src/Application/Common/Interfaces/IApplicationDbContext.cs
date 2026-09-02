@@ -15,6 +15,8 @@ public interface IApplicationDbContext
     IQueryable<TgAuthLink> TgAuthLinks { get; }
     IQueryable<DataEntry> DataEntries { get; }
     IQueryable<SongTopic> SongTopics { get; }
+    IQueryable<RoleTitle> RoleTitles { get; }
+    IQueryable<UserPreferences> UserPreferencesEnumerable { get; }
 
     void Add(object entity);
     void Remove(object entity);
