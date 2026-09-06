@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using CuMusicClub.Application.Common.Auth;
-using CuMusicClub.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace CuMusicClub.Web.Endpoints.v1.Auth;

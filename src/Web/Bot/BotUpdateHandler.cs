@@ -1,13 +1,10 @@
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using CuMusicClub.Application.Common.Auth;
-using CuMusicClub.Application.Common.Interfaces;
 using CuMusicClub.Application.Services.Telegram;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
-using CuMusicClub.Infrastructure.Data;
-using CuMusicClub.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -16,7 +13,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace CuMusicClub.Web.Bot;
 
 public class BotUpdateHandler(
-    IApplicationDbContext db,
+    ITgAuthLinkRepository tgAuthLinks,
     ITelegramAuthService tgAuthService,
     ILogger<BotUpdateHandler> logger)
 {
@@ -135,7 +132,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        var link = await db.TgAuthLinks.FirstOrDefaultAsync(l => l.Id == token, cancellationToken);
+        var link = await tgAuthLinks.FindByIdAsync(token, cancellationToken);
         if (link is not
             {
                 TgUserId: null,
@@ -149,7 +146,7 @@ public class BotUpdateHandler(
         }
 
         link.TgUserId = user.Id;
-        await db.SaveChangesAsync(cancellationToken);
+        await tgAuthLinks.SaveChangesAsync(cancellationToken);
 
         await tgAuthService.UpsertUserAsync(user, cancellationToken);
 

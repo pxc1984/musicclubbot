@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using CuMusicClub.Application.Common.Auth;
-using CuMusicClub.Application.Common.Interfaces;
 using CuMusicClub.Application.Services.Auth;
 using CuMusicClub.Application.Services.Permission;
 using CuMusicClub.Domain.Entities;
@@ -13,7 +12,6 @@ public static partial class Auth
 {
     [EndpointSummary("Get the current user's profile")]
     private static async Task<Results<Ok<UserProfileDto>, NotFound>> Me(ClaimsPrincipal claimsPrincipal,
-        IApplicationDbContext db,
         IPermissionService permissionService,
         UserManager<ApplicationUser> userManager,
         CancellationToken cancellationToken)

@@ -1,14 +1,12 @@
 using System.Reflection;
-using CuMusicClub.Application.Common.Interfaces;
 using CuMusicClub.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Telegram.Bot.Types;
 
 namespace CuMusicClub.Infrastructure.Data;
 
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>, IApplicationDbContext
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
@@ -72,81 +70,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<UserPreferences> UserPreferencesEnumerable
     {
         get { return Set<UserPreferences>(); }
-    }
-
-    IQueryable<ApplicationUser> IApplicationDbContext.Users
-    {
-        get { return Users; }
-    }
-
-    IQueryable<Calendar> IApplicationDbContext.Calendars
-    {
-        get { return Calendars; }
-    }
-
-    IQueryable<CalendarAttachState> IApplicationDbContext.CalendarAttachStates
-    {
-        get { return CalendarAttachStates; }
-    }
-
-    IQueryable<Song> IApplicationDbContext.Songs
-    {
-        get { return Songs; }
-    }
-
-    IQueryable<SongRole> IApplicationDbContext.SongRoles
-    {
-        get { return SongRoles; }
-    }
-
-    IQueryable<SongRoleAssignment> IApplicationDbContext.SongRoleAssignments
-    {
-        get { return SongRoleAssignments; }
-    }
-
-    IQueryable<UserSession> IApplicationDbContext.UserSessions
-    {
-        get { return UserSessions; }
-    }
-
-    IQueryable<RefreshToken> IApplicationDbContext.RefreshTokens
-    {
-        get { return RefreshTokens; }
-    }
-
-    IQueryable<TgAuthLink> IApplicationDbContext.TgAuthLinks
-    {
-        get { return TgAuthLinks; }
-    }
-
-    IQueryable<DataEntry> IApplicationDbContext.DataEntries
-    {
-        get { return DataEntries; }
-    }
-
-    IQueryable<SongTopic> IApplicationDbContext.SongTopics
-    {
-        get { return SongTopics; }
-    }
-
-    IQueryable<RoleTitle> IApplicationDbContext.RoleTitles
-    {
-        get { return RoleTitles; }
-    }
-
-    IQueryable<UserPreferences> IApplicationDbContext.UserPreferencesEnumerable
-    {
-        get { return UserPreferencesEnumerable; }
-    }
-
-    void IApplicationDbContext.Add(object entity)
-    {
-        Add(entity);
-    }
-
-    void IApplicationDbContext.Remove(object entity)
-    {
-        Remove(entity);
     }
 
     protected override void OnModelCreating(ModelBuilder builder)

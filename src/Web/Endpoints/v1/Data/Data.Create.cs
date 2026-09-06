@@ -1,12 +1,10 @@
 using CuMusicClub.Application.Services.DataEntry;
-using CuMusicClub.Infrastructure.Data;
 
 namespace CuMusicClub.Web.Endpoints.v1.Data;
 
 public static partial class Data
 {
-    private static async Task<IResult> Create(ApplicationDbContext db,
-        IDataEntryService dataEntryService,
+    private static async Task<IResult> Create(IDataEntryService dataEntryService,
         IFormFile file,
         CancellationToken cancellationToken)
     {

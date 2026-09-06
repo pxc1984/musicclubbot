@@ -1,6 +1,6 @@
 using CuMusicClub.Application.Services.DataEntry;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
-using CuMusicClub.Infrastructure.Data;
 
 namespace CuMusicClub.Web.Backfill;
 
@@ -50,23 +50,19 @@ public sealed class ThumbnailBackfillHostedService(
         var failed = 0;
 
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var songs = scope.ServiceProvider.GetRequiredService<ISongRepository>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         var dataEntryService = scope.ServiceProvider.GetRequiredService<IDataEntryService>();
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var songs = await db
-                .Songs.Where(s =>
-                    s.ThumbnailDataEntryId == null && s.ThumbnailUrl != null && s.ThumbnailUrl.Trim() != "")
-                .OrderBy(s => s.Id)
-                .Take(BatchSize)
-                .ToListAsync(cancellationToken);
+            var songsBatch = await songs.GetSongsForThumbnailBackfillAsync(BatchSize, cancellationToken);
 
-            if (songs.Count == 0) break;
+            if (songsBatch.Count == 0) break;
 
-            logger.LogDebug("Processing batch of {Count} thumbnails", songs.Count);
+            logger.LogDebug("Processing batch of {Count} thumbnails", songsBatch.Count);
 
-            foreach (var song in songs)
+            foreach (var song in songsBatch)
             {
                 if (cancellationToken.IsCancellationRequested) break;
 
@@ -101,8 +97,8 @@ public sealed class ThumbnailBackfillHostedService(
                 }
             }
 
-            await db.SaveChangesAsync(cancellationToken);
-            db.ChangeTracker.Clear();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            unitOfWork.ClearChangeTracker();
         }
 
         if (succeeded != 0)

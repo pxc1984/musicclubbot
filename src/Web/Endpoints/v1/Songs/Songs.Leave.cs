@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using CuMusicClub.Application.Services.Song;
 using CuMusicClub.Domain.Entities;
-using CuMusicClub.Infrastructure.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 
@@ -11,7 +10,6 @@ public static partial class Songs
 {
     [EndpointSummary("Leave a song role")]
     private static async Task<Results<Ok<SongDto>, BadRequest<string>>> Leave(ISongService service,
-        ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
         ClaimsPrincipal claimsPrincipal,
         Guid roleId,

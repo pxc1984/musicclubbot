@@ -2,288 +2,247 @@
 
 ## Обзор проекта
 
-**Music Club** — ERP-система для музыкального клуба ЦУ, построенная на .NET 10.0. Система управляет песнями, событиями, участниками и интеграцией с Telegram.
+**Music Club** — ERP-система для музыкального клуба ЦУ, построенная на .NET 10.0. Система управляет песнями, событиями, участниками и интеграцией с Telegram (аутентификация через бота, уведомления о заполненных песнях, топики в форуме).
 
-### Архитектура
+### Архитектура (Clean Architecture / DDD)
 
 ```
 src/
-├── Domain/          — Сущности предметной области (ApplicationUser, Song, Event, etc.)
-├── Application/     — Бизнес-логика, валидация, JWT, Telegram-бот
-├── Infrastructure/  — EF Core, Identity, репозитории, миграции
-├── Shared/          — Общие утилиты и константы
-└── Web/             — ASP.NET Core Web API + ClientApp (SPA)
-    └── ClientApp/   — Frontend (Node.js 22, pnpm)
+├── Domain/          — Сущности предметной области, абстракции, константы, value objects
+├── Application/     — Бизнес-логика (сервисы), DTO, валидация, опции, Common
+├── Infrastructure/  — Данные (EF Core, репозитории, миграции) + инфраструктура (JWT, Identity, Telegram-клиент)
+├── Shared/          — Общие константы и утилиты
+└── Web/             — ASP.NET Core Web API + ClientApp (SPA, SvelteKit)
+    └── ClientApp/   — Frontend (Node.js, pnpm)
 ```
 
-### Технологический стек
+Ключевой принцип: **интерфейсы в `Domain/Abstractions/`, реализации (EF Core) в `Infrastructure/Data/Repositories/`; бизнес-логика в `Application/Services/`, данные — в `Infrastructure/`.** Зависимости направлены сверху вниз: `Web → Infrastructure → Application → Domain`.
+
+| Слой | Содержимое |
+|------|-----------|
+| **Domain** | Сущности (`Entities/`), интерфейсы репозиториев (`Abstractions/` — `IRepository<T>`, `ISongRepository`, `IUnitOfWork`, …), константы (`Constants/` — `Permission`, `Roles`, `PermissionClaimTypes`), `Enums/`, `ValueObjects/` (`SongThumbnail`), `Common/` |
+| **Application** | Сервисы-реализации бизнес-логики (`Services/` — Song, Auth, DataEntry, Permission, Telegram), DTO, валидаторы FluentValidation, `Common/` (`Auth/`, `Exceptions/`, `Options/`), `GlobalUsings.cs` |
+| **Infrastructure** | `Data/` (DbContext, `Repositories/`, `Configurations/`, `Migrations/`, `Interceptors/`, `ApplicationDbContextInitialiser`), JWT, Identity, `ITelegramBotClient`, опции биндятся отсюда |
+| **Web** | Minimal API-эндпоинты (`Endpoints/v1/`), Telegram-бот (`Bot/`), backfill-сервисы (`Backfill/`), OpenAPI/Scalar, SPA |
+
+### Слои репозиториев (паттерн)
+
+- Общий контракт: `IRepository<TEntity>` в `Domain/Abstractions/` — `Query()`, `FindByIdAsync`, `AddAsync`, `Update`, `Remove`, `SaveChangesAsync`.
+- Конкретные интерфейсы (`ISongRepository`, `IUserSessionRepository`, …) расширяют generic доменными запросами.
+- Реализации: `Repository<TEntity>` + специфичные репозитории в `Infrastructure/Data/Repositories/`.
+- Транзакции и сохранение: `IUnitOfWork`/`ITransaction` (в `Domain/Abstractions/`, реализация в `Infrastructure/Data/Repositories/UnitOfWork.cs`).
+- В DI базовый `DbContext` маппится на конкретный `ApplicationDbContext`; репозитории регистрируются через `AddScoped(typeof(IRepository<>), typeof(Repository<>))` и по-отдельности.
+
+## Технологический стек
 
 - **Backend:** .NET 10.0, ASP.NET Core, Entity Framework Core 10, Npgsql
-- **Frontend:** Node.js 22, pnpm, SPA (встроен в Web-проект)
-- **База данных:** PostgreSQL 18
-- **Аутентификация:** ASP.NET Identity + JWT + Telegram Bot
-- **Контейнеризация:** Docker, Docker Compose
-- **CI/CD:** GitHub Actions (Docker Hub, VDS-деплой)
+- **Frontend:** Node.js, pnpm, SvelteKit SPA (встроен в Web-проект)
+- **База данных:** PostgreSQL 18 (в Docker), enum `song_link_type`
+- **Аутентификация:** ASP.NET Identity (единая модель пользователя) + JWT + Telegram Bot
+- **Контейнеризация:** Docker, Docker Compose, Traefik (reverse-proxy)
+- **CI/CD:** GitHub Actions (деплой на dev-VDS по SSH)
+- **Тесты:** NUnit, Shouldly, Moq, Testcontainers (PostgreSQL), Respawn
 
-### Ключевые зависимости
+### Ключевые пакеты (централизованное управление в `Directory.Packages.props`)
 
-| Пакет | Версия | Назначение |
-|-------|--------|------------|
-| Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.1 | PostgreSQL-провайдер |
-| Telegram.Bot | 22.10.2 | Telegram API |
-| Scalar.AspNetCore | 2.13.13 | OpenAPI-документация |
-| FluentValidation.DependencyInjectionExtensions | 12.1.1 | Валидация |
-| Testcontainers.PostgreSql | 4.13.0 | Интеграционные тесты |
+| Пакет | Назначение |
+|-------|------------|
+| Npgsql.EntityFrameworkCore.PostgreSQL | PostgreSQL-провайдер |
+| Telegram.Bot | Telegram API |
+| Scalar.AspNetCore | OpenAPI-документация (UI на `/scalar/v1`) |
+| FluentValidation.DependencyInjectionExtensions | Валидация |
+| Ardalis.GuardClauses | Guard-клаузы (`NotFoundException` и др.) |
+| Testcontainers.PostgreSql / Respawn | Интеграционные тесты |
 
 ## Быстрый старт
 
 ### Предварительные требования
 
 - .NET 10 SDK
-- Node.js 22+ с pnpm (`corepack enable`)
+- Node.js (для фронта), pnpm
 - Docker & Docker Compose
-- PostgreSQL (локально или в Docker)
 
 ### Запуск через Docker Compose (рекомендуется)
 
 ```bash
-# 1. Скопируйте .env.example в .env
-cp .env.example .env
-
-# 2. Отредактируйте .env при необходимости (порты, пароли)
-
-# 3. Запустите все сервисы
+cp .env.example .env          # отредактировать при необходимости
 docker compose up -d --build
-
-# 4. Проверьте статус
-docker compose ps
-
-# 5. Логи
+docker compose ps             # статус сервисов
 docker compose logs -f backend
-docker compose logs -f frontend
 ```
 
-**Сервисы:**
-- `traefik` — порт 80 (прокси)
-- `backend` — порт 8080 (внутри сети), health: `/health`
-- `frontend` — порт 5173
-- `db` — порт 5432
+**Сервисы:** `traefik` (порт `$NGINX_PORT`, по умолч. 80), `db` (PostgreSQL 18, `$DB_PORT`), `backend` (`:8080`, health `/health`), `frontend` (`:5173`).
+
+> Примечание: в `docker-compose.yml` для `backend` задан оверрайд `ConnectionStrings__CuMusicClubDb`, собираемый из `POSTGRES_*` переменных — отдельно задавать строку подключения не нужно. Для `db` используется `env_file: .env`. Остальной конфиг приходит из `.env` + дефолтов в приложении.
 
 ### Локальная разработка
 
 ```bash
 # Backend
-cd src/Web
-dotnet restore
-dotnet run
+cd src/Web && dotnet run
 
 # Frontend (отдельный терминал)
-cd src/Web/ClientApp
-pnpm install
-pnpm run dev
+cd src/Web/ClientApp && pnpm install && pnpm run dev
 
 # База данных (Docker)
 docker compose up -d db
 ```
 
+Есть готовые профили запуска в `.run/` (Web http/https, dev, db).
+
 ### Миграции БД
 
 ```bash
-# Добавить новую миграцию
 dotnet ef migrations add MigrationName --project src/Infrastructure --startup-project src/Web
-
-# Применить миграции
 dotnet ef database update --project src/Infrastructure --startup-project src/Web
 ```
 
-> **Примечание:** В dev-режиме используется `EnsureDeletedAsync` + `EnsureCreatedAsync` — миграции не применяются автоматически.
+> **Примечание:** в dev-режиме используется `EnsureCreatedAsync` (через `ApplicationDbContextInitialiser`) — миграции не применяются автоматически.
 
 ## Тестирование
 
 ```bash
-# Все тесты
-dotnet test
-
-# Unit-тесты домена
-dotnet test tests/Domain.UnitTests
-
-# Unit-тесты приложения
+dotnet test                      # все тесты
 dotnet test tests/Application.UnitTests
-
-# Интеграционные тесты (требуют Docker)
-dotnet test tests/Infrastructure.IntegrationTests
+dotnet test tests/Domain.UnitTests
+dotnet test tests/Infrastructure.IntegrationTests   # требует Docker (Testcontainers)
 ```
 
-**Фреймворки:**
-- NUnit 4.5.1
-- Moq 4.20.72
-- Shouldly 4.3.0
-- Testcontainers 4.13.0 (PostgreSQL для интеграционных тестов)
+**Структура и фреймворки:**
+- **`Domain.UnitTests`** — сущности, константы, value objects (NUnit + Shouldly).
+- **`Application.UnitTests`** — бизнес-логика сервисов с моками (NUnit + Shouldly + Moq).
+- **`Infrastructure.IntegrationTests`** — e2e через `WebApplicationFactory<Program>` + Testcontainers PostgreSQL + Respawn для сброса БД (NUnit + Shouldly + Moq).
+
+> **Известное ограничение:** интеграционные тесты, резолвящие `TelegramChatService`, падают в тестовом окружении без заданного `Telegram__BotToken` (создание `TelegramBotClient`). Чтобы они проходили, нужно передать тестовый Telegram-токен или замокать `ITelegramBotClient`.
 
 ## Структура базы данных
+
+Подробная ER-схема и mermaid-диаграмма — в [`ER_SCHEME.md`](ER_SCHEME.md) (генерируется из флюент-конфигураций в `Infrastructure/Data/Configurations/`).
 
 ### Основные таблицы
 
 | Таблица | Описание |
 |---------|----------|
-| `AspNetUsers` | Пользователи (ApplicationUser: Id, UserName, Email, TgUserId, DisplayName, AvatarUrl) |
-| `AspNetRoles` | Роли |
-| `AspNetUserClaims` / `AspNetRoleClaims` | Гранулярные права (claim_type = "permission") |
-| `song` | Песни (title, artist, link_kind, link_url, is_featured) |
-| `song_role` | Роли песни (song_id, role) |
-| `song_role_assignment` | Назначения пользователей на роли |
-| `event` | События (title, start_at, location, notify_*) |
-| `event_track_item` | Треклист события |
-| `event_participant` | Участники событий |
-| `refresh_tokens` | JWT refresh-токены |
-| `tg_auth_user` | Telegram-сессии авторизации |
-| `song_topic` | Связь с Telegram-топиками |
-| `calendar` | ICS-календари пользователей |
-| `calendar_attach_state` | Состояние бота при привязке календаря |
+| `AspNetUsers` | Пользователи (`ApplicationUser : IdentityUser<Guid>` + `TgUserId`, `DisplayName`, `AvatarUrl`, …) |
+| `AspNetRoles` / `AspNetUserClaims` / `AspNetRoleClaims` | Роли и гранулярные права (claim_type = `"permission"`) |
+| `song` | Песни (title, artist, link_kind, link_url, is_featured, thumbnail) |
+| `song_role` / `song_role_assignment` | Роли песни и назначения пользователей |
+| `song_topic` | Связь песни с Telegram-топиком |
+| `event` / `event_track_item` / `event_participant` | События и треклисты (Work In Progress) |
+| `refresh_tokens` / `user_session` | JWT refresh-токены и сессии |
+| `tg_auth_link` | Telegram-сессии авторизации |
+| `data_entry` | Загруженные файлы (в т.ч. превью) |
+| `calendar` / `calendar_attach_state` | ICS-календари (Work In Progress) |
+| `role_title` / `user_preferences` | Предустановленные роли и предпочтения |
 
 ### Система прав (Permissions)
 
-Claims с `claim_type = "permission"`:
+Права — claims с `claim_type = "permission"` (см. `Domain/Constants/Permission.cs`):
 
 | Permission | Описание |
 |------------|----------|
-| `participation.edit_own` | Редактирование своих участий |
-| `participation.edit_any` | Редактирование любых участий |
-| `songs.edit_own` | Редактирование своих песен |
-| `songs.edit_any` | Редактирование любых песен |
+| `participation.edit_own` / `participation.edit_any` | Редактирование своих / любых участий |
+| `songs.edit_own` / `songs.edit_any` | Редактирование своих / любых песен |
 | `songs.edit_featured` | Редактирование избранных песен |
-| `events.edit` | Редактирование событий |
-| `tracklists.edit` | Редактирование треклистов |
+| `events.edit` / `tracklists.edit` | Редактирование событий / треклистов |
 
-Новым пользователям выдаются: `songs.edit_own` + `participation.edit_own`.
-Роль `Administrator` получает все permissions.
-
-**Mermaid-диаграмма:** См. [`ER_SCHEME.md`](ER_SCHEME.md)
+- Новым пользователям выдаются: `songs.edit_own` + `participation.edit_own`.
+- Роль `Administrator` получает все permissions; роли — лишь «сахар», материализующий claims (см. `Permission.ByRole`).
 
 ## CI/CD
 
-### GitHub Actions
+- [`.github/workflows/deploy-dev.yml`](.github/workflows/deploy-dev.yml) — деплой на dev-VDS по SSH (rsync `src`, `docker`, `traefik`, `docker-compose.yml`, slnx, props; запись `.env` из секрета; `docker compose up -d --build`). Триггер: push в `master` или вручную. Секреты: `SSH_KEY`, `HOST`, `USERNAME`, `DEPLOY_PATH`, `ENV`.
 
-| Workflow | Триггер | Описание |
-|----------|---------|----------|
-| [`containers.yml`](.github/workflows/containers.yml) | Manual | Build & Push Docker-образов на Docker Hub |
-| [`deploy.yml`](.github/workflows/deploy.yml) | Push в `master` / Manual | Деплой на VDS через SSH |
+## Переменные окружения
 
-### Docker-образы
+Источник истины — `.env` (см. [`.env.example`](.env.example)):
 
-- `docker.io/<username>/musicclub-backend:<sha>`
-- `docker.io/<username>/musicclub-frontend:<sha>`
-- `docker.io/<username>/musicclub-bot:<sha>`
+```ini
+# Application
+Logging__LogLevel__Default=Information
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_URLS=http://+:8080
 
-### Деплой на VDS
+# Backend / Telegram (пустой BotToken отключает Telegram-аутентификацию)
+Telegram__BotToken=
+Telegram__ChatId=
+Telegram__BotUsername=
+Telegram__SkipChatMembershipCheck=true
+Telegram__WebAppUrl=http://localhost:80
 
-```bash
-# Автоматически при push в master
-# Или вручную через GitHub Actions
+# Security (мин. длина, иначе ошибка в рантайме)
+Security__Secret=change-me-in-production
 
-# Скрипт деплоя:
-cd /opt/musicclub
-cd source && git fetch && git reset --hard origin/master && git clean -fdx && cd -
-docker compose -f docker-compose.yml up -d --build
+# Frontend
+API_URL=http://localhost:80
+API_SSR_URL=http://backend:8080
+
+# PostgreSQL
+POSTGRES_DB=db
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=password
+DB_PORT=5432
+
+# Nginx / Traefik
+SERVER_HOST=localhost
+NGINX_PORT=80
 ```
+
+> Опции приложения: `Application/Common/Options/` (`SecurityOptions`, `TelegramOptions`); в Web — `Web/Bot/BotOptions.cs`.
 
 ## Конвенции разработки
 
 ### C# стиль (`.editorconfig`)
 
-- **Отступы:** 4 пробела, `csharp_indent_case_contents = true`
-- **Фигурные скобки:** `csharp_prefer_braces = false:warning` (разрешены однострочные)
-- **var:** `csharp_style_var_for_built_in_types = true:suggestion`
-- **Expression-bodied members:** Предпочитаются для методов/свойств в одну строку
-- **Null-пропагация:** `csharp_style_null_propagation = true:warning`
-- **Сортировка using:** `dotnet_sort_system_directives_first = true`
+- Отступы: 4 пробела; `csharp_indent_case_contents = true`.
+- Фигурные скобки: `csharp_prefer_braces = false:warning` (разрешены однострочные).
+- `var` предпочтителен (`csharp_style_var_for_built_in_types = true:suggestion`).
+- Expression-bodied методы/свойства выключены (`= false:warning`).
+- Null-коалесценция и null-пропагация: `= true:warning`.
+- Сортировка using: `dotnet_sort_system_directives_first = true`.
+- Разделители строк: CRLF, `insert_final_newline = true`.
 
 ### Архитектурные принципы
 
-1. **Domain-Driven Design:** Сущности в `Domain/`, логика в `Application/`
-2. **Dependency Injection:** Все зависимости через конструктор
-3. **Guard Clauses:** `Ardalis.GuardClauses` для валидации аргументов
-4. **FluentValidation:** Валидация моделей через отдельные валидаторы
-5. **EF Core:** Fluent API в `Infrastructure/Data/Configurations/`
+1. **DDD / Clean Architecture:** сущности и абстракции в `Domain/`, бизнес-логика в `Application/`, данные и инфраструктура в `Infrastructure/`.
+2. **Репозитории:** интерфейсы в `Domain/Abstractions/`, реализации в `Infrastructure/Data/Repositories/`; общий `IRepository<T>` + специфичные; транзакции через `IUnitOfWork`.
+3. **Разделение интерфейсов/реализаций:** сервисы зависят от абстракций репозиториев, а не от `DbContext` напрямую.
+4. **Dependency Injection:** все зависимости через конструктор; регистрация — в `AddApplicationServices`/`AddInfrastructureServices`/`AddWebServices`.
+5. **Guard Clauses:** `Ardalis.GuardClauses` для валидации аргументов.
+6. **FluentValidation:** валидация моделей через отдельные валидаторы (сканируются из Application-сборки).
+7. **EF Core:** Fluent API в `Infrastructure/Data/Configurations/`.
 
 ### Именование
 
-- **Пространства имён:** `CuMusicClub.{Layer}` (например, `CuMusicClub.Domain.Entities`)
-- **Сущности:** Единственное число (`Song`, `Event`, `ApplicationUser`)
-- **Таблицы БД:** snake_case, единственное число (`song`, `event`, `song_role`)
-- **DTO:** Суффикс `Dto` или `Request`/`Response`
-
-### Telegram-интеграция
-
-- **Бот:** `Telegram.Bot` SDK
-- **Аутентификация:** Поток `/start auth_<uuid>` → `tg_auth_user`
-- **Уведомления:** `notify_day_before`, `notify_hour_before` в `event`
-- **WebApp:** `Telegram__WebAppUrl` в `.env`
-
-## Переменные окружения
-
-### Backend (`.env`)
-
-```ini
-# Приложение
-Logging__LogLevel__Default=Information
-ASPNETCORE_ENVIRONMENT=Production
-ASPNETCORE_URLS=http://+:8080
-
-# База данных
-ConnectionStrings__CuMusicClubDb=Server=db;Port=5432;Database=db;Username=admin;Password=password
-
-# Telegram
-Telegram__BotToken=<token>
-Telegram__ChatId=<chat_id>
-Telegram__SkipChatMembershipCheck=true
-Telegram__WebAppUrl=http://localhost:80
-
-# Безопасность
-Security__Secret=<min-32-chars>
-
-# Frontend
-API_URL=http://localhost:80/api
-```
-
-### Frontend
-
-```ini
-API_URL=http://localhost:80/api
-HOST=0.0.0.0
-PORT=5173
-```
+- **Пространства имён:** `CuMusicClub.{Layer}` (например, `CuMusicClub.Domain.Abstractions`, `CuMusicClub.Application.Services.Song`).
+- **Сущности:** единственное число (`Song`, `Event`, `ApplicationUser`).
+- **Таблицы БД:** snake_case, единственное число (`song`, `event`, `song_role`).
+- **DTO:** суффикс `Dto` или `Request`/`Response`.
+- **Репозитории:** интерфейс `I{Entity}Repository`, реализация `{Entity}Repository`.
 
 ## Полезные команды
 
 ```bash
-# Проверка здоровья сервисов
+# Проверка здоровья
 docker compose ps
-docker compose logs -f backend
-docker compose logs -f frontend
+docker compose logs -f backend / frontend
 
 # Пересборка backend
 docker compose up -d --build backend
 
-# Очистка (данные БД сохранятся в volume)
+# Очистка (данные в volume сохранятся)
 docker compose down
-
 # Полная очистка (включая БД)
 docker compose down -v
 
-# OpenAPI-документация (генерируется в wwwroot/openapi/)
-# Доступна через Scalar UI: /scalar/v1
+# OpenAPI/Scalar UI
+# /scalar/v1
 ```
 
-## Контакты и ресурсы
+## Документация и ресурсы
 
-- **Исходный код:** GitLab (внутренний)
-- **Docker Hub:** `docker.io/<username>/musicclub-*`
-- **VDS:** `/opt/musicclub`
-- **База данных:** PostgreSQL 18, порт 5432
-- **Документация БД:** [`ER_SCHEME.md`](ER_SCHEME.md)
+- **Схема БД (текст+mermaid):** [`ER_SCHEME.md`](ER_SCHEME.md)
 - **Схема БД (визуальная):** [`docs/musicclub_v2.png`](docs/musicclub_v2.png)
-
----
-
-*Последнее обновление: 2026-08-26*
+- **Миграционные скрипты:** [`docs/migration.sql`](docs/migration.sql)
+- **Ориентир архитектуры:** репозиторий `~/dev/Namekni` (эталон схемы generic repository / разделения слоёв)
+- **Правки AGENTS.md:** файл защищён от автоматической модификации — изменения требуют явного запроса пользователя.
