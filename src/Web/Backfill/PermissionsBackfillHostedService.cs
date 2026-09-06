@@ -1,8 +1,6 @@
 using CuMusicClub.Application.Services.Permission;
 using CuMusicClub.Domain.Abstractions;
-using CuMusicClub.Domain.Constants;
 using CuMusicClub.Domain.Entities;
-using Microsoft.AspNetCore.Identity;
 
 namespace CuMusicClub.Web.Backfill;
 
@@ -50,13 +48,11 @@ public sealed class PermissionsBackfillHostedService(
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var permissionService = scope.ServiceProvider.GetRequiredService<IPermissionService>();
 
         while (!cancellationToken.IsCancellationRequested)
         {
             var usersWithoutPermissions = await users.GetUsersWithoutPermissionsAsync(BatchSize,
-                PermissionClaimTypes.Permission,
                 cancellationToken);
 
             if (usersWithoutPermissions.Count == 0) break;
@@ -82,6 +78,8 @@ public sealed class PermissionsBackfillHostedService(
                         user.UserName);
                 }
             }
+
+            await users.SaveChangesAsync(cancellationToken);
         }
 
         if (succeeded != 0)

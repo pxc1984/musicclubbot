@@ -8,6 +8,21 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
 {
     public void Configure(EntityTypeBuilder<ApplicationUser> builder)
     {
+        builder.ToTable("app_user");
+        builder.HasKey(u => u.Id);
+
+        builder
+            .Property(u => u.Id)
+            .HasColumnName("Id");
+        builder
+            .Property(u => u.UserName)
+            .HasColumnName("UserName");
+        builder
+            .Property(u => u.Email)
+            .HasColumnName("Email");
+        builder
+            .Property(u => u.PasswordHash)
+            .HasColumnName("PasswordHash");
         builder
             .Property(u => u.TgUserId)
             .HasColumnName("TgUserId");

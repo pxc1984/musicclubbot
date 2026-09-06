@@ -10,7 +10,7 @@
 src/
 ├── Domain/          — Сущности предметной области, абстракции, константы, value objects
 ├── Application/     — Бизнес-логика (сервисы), DTO, валидация, опции, Common
-├── Infrastructure/  — Данные (EF Core, репозитории, миграции) + инфраструктура (JWT, Identity, Telegram-клиент)
+├── Infrastructure/  — Данные (EF Core, репозитории, миграции) + инфраструктура (JWT, Telegram-клиент)
 ├── Shared/          — Общие константы и утилиты
 └── Web/             — ASP.NET Core Web API + ClientApp (SPA, SvelteKit)
     └── ClientApp/   — Frontend (Node.js, pnpm)
@@ -20,9 +20,9 @@ src/
 
 | Слой | Содержимое |
 |------|-----------|
-| **Domain** | Сущности (`Entities/`), интерфейсы репозиториев (`Abstractions/` — `IRepository<T>`, `ISongRepository`, `IUnitOfWork`, …), константы (`Constants/` — `Permission`, `Roles`, `PermissionClaimTypes`), `Enums/`, `ValueObjects/` (`SongThumbnail`), `Common/` |
+| **Domain** | Сущности (`Entities/`), интерфейсы репозиториев (`Abstractions/` — `IRepository<T>`, `ISongRepository`, `IUnitOfWork`, …), константы (`Constants/` — `Permission`, `Roles`), `Enums/`, `ValueObjects/` (`SongThumbnail`), `Common/` |
 | **Application** | Сервисы-реализации бизнес-логики (`Services/` — Song, Auth, DataEntry, Permission, Telegram), DTO, валидаторы FluentValidation, `Common/` (`Auth/`, `Exceptions/`, `Options/`), `GlobalUsings.cs` |
-| **Infrastructure** | `Data/` (DbContext, `Repositories/`, `Configurations/`, `Migrations/`, `Interceptors/`, `ApplicationDbContextInitialiser`), JWT, Identity, `ITelegramBotClient`, опции биндятся отсюда |
+| **Infrastructure** | `Data/` (DbContext, `Repositories/`, `Configurations/`, `Migrations/`, `Interceptors/`, `ApplicationDbContextInitialiser`), JWT, `ITelegramBotClient`, опции биндятся отсюда |
 | **Web** | Minimal API-эндпоинты (`Endpoints/v1/`), Telegram-бот (`Bot/`), backfill-сервисы (`Backfill/`), OpenAPI/Scalar, SPA |
 
 ### Слои репозиториев (паттерн)
@@ -38,7 +38,7 @@ src/
 - **Backend:** .NET 10.0, ASP.NET Core, Entity Framework Core 10, Npgsql
 - **Frontend:** Node.js, pnpm, SvelteKit SPA (встроен в Web-проект)
 - **База данных:** PostgreSQL 18 (в Docker), enum `song_link_type`
-- **Аутентификация:** ASP.NET Identity (единая модель пользователя) + JWT + Telegram Bot
+- **Аутентификация:** самописная модель пользователя (`app_user` + `user_permissions`) + JWT + Telegram Bot
 - **Контейнеризация:** Docker, Docker Compose, Traefik (reverse-proxy)
 - **CI/CD:** GitHub Actions (деплой на dev-VDS по SSH)
 - **Тесты:** NUnit, Shouldly, Moq, Testcontainers (PostgreSQL), Respawn
@@ -123,8 +123,8 @@ dotnet test tests/Infrastructure.IntegrationTests   # требует Docker (Tes
 
 | Таблица | Описание |
 |---------|----------|
-| `AspNetUsers` | Пользователи (`ApplicationUser : IdentityUser<Guid>` + `TgUserId`, `DisplayName`, `AvatarUrl`, …) |
-| `AspNetRoles` / `AspNetUserClaims` / `AspNetRoleClaims` | Роли и гранулярные права (claim_type = `"permission"`) |
+| `app_user` | Пользователи (`ApplicationUser` + `TgUserId`, `DisplayName`, `AvatarUrl`, …; без ASP.NET Identity) |
+| `user_permissions` | Гранулярные права (строка на право: `songs.edit_own`, `events.edit`, …) |
 | `song` | Песни (title, artist, link_kind, link_url, is_featured, thumbnail) |
 | `song_role` / `song_role_assignment` | Роли песни и назначения пользователей |
 | `song_topic` | Связь песни с Telegram-топиком |
@@ -137,7 +137,7 @@ dotnet test tests/Infrastructure.IntegrationTests   # требует Docker (Tes
 
 ### Система прав (Permissions)
 
-Права — claims с `claim_type = "permission"` (см. `Domain/Constants/Permission.cs`):
+Права — строковые значения, хранящиеся по одной строке на право в таблице `user_permissions(user_id, permission)` (см. `Domain/Constants/Permission.cs`):
 
 | Permission | Описание |
 |------------|----------|
@@ -147,7 +147,7 @@ dotnet test tests/Infrastructure.IntegrationTests   # требует Docker (Tes
 | `events.edit` / `tracklists.edit` | Редактирование событий / треклистов |
 
 - Новым пользователям выдаются: `songs.edit_own` + `participation.edit_own`.
-- Роль `Administrator` получает все permissions; роли — лишь «сахар», материализующий claims (см. `Permission.ByRole`).
+- Роль `Administrator` получает все permissions; роли — лишь «сахар», материализующий набор прав в `user_permissions` (см. `Permission.ByRole`).
 
 ## CI/CD
 

@@ -161,10 +161,13 @@ $$;
 --
 -- legacy.app_user
 --        ->
--- public."AspNetUsers"
+-- public.app_user
+--
+-- Целевая схема пользователя повторяет go-based (app_user + user_permissions),
+-- ASP.NET Identity не используется.
 -- ============================================================
 
-INSERT INTO public."AspNetUsers"
+INSERT INTO public.app_user
 (
     "Id",
     "TgUserId",
@@ -174,19 +177,8 @@ INSERT INTO public."AspNetUsers"
     "CreatedAt",
     "UpdatedAt",
     "UserName",
-    "NormalizedUserName",
     "Email",
-    "NormalizedEmail",
-    "EmailConfirmed",
-    "PasswordHash",
-    "SecurityStamp",
-    "ConcurrencyStamp",
-    "PhoneNumber",
-    "PhoneNumberConfirmed",
-    "TwoFactorEnabled",
-    "LockoutEnd",
-    "LockoutEnabled",
-    "AccessFailedCount"
+    "PasswordHash"
 )
 SELECT
     u.id,
@@ -208,41 +200,71 @@ SELECT
 
     u.username,
 
-    CASE
-        WHEN u.username IS NULL
-            THEN NULL
-        ELSE UPPER(u.username)
-        END,
-
     u.email,
 
-    CASE
-        WHEN u.email IS NULL
-            THEN NULL
-        ELSE UPPER(u.email)
-        END,
-
-    false,
-
-    u.password_hash,
-
-    gen_random_uuid()::text,
-
-    gen_random_uuid()::text,
-
-    NULL,
-
-    false,
-
-    false,
-
-    NULL,
-
-    false,
-
-    0
+    u.password_hash
 
 FROM legacy.app_user u;
+
+
+-- ============================================================
+-- 6.1 USER PERMISSIONS
+--
+-- legacy.user_permissions (boolean-колонки)
+--        ->
+-- public.user_permissions (строковые права)
+--
+-- go-based boolean-колонки раскладываются в строки прав нового формата.
+-- songs.edit_featured в go отсутствует (добавлен позже в .NET) — для
+-- мигрированных пользователей он не выставляется.
+-- ============================================================
+
+INSERT INTO public.user_permissions
+(
+    "UserId",
+    "Permission"
+)
+SELECT
+    user_id,
+    'participation.edit_own'
+FROM legacy.user_permissions
+WHERE edit_own_participation
+
+UNION ALL
+SELECT
+    user_id,
+    'participation.edit_any'
+FROM legacy.user_permissions
+WHERE edit_any_participation
+
+UNION ALL
+SELECT
+    user_id,
+    'songs.edit_own'
+FROM legacy.user_permissions
+WHERE edit_own_songs
+
+UNION ALL
+SELECT
+    user_id,
+    'songs.edit_any'
+FROM legacy.user_permissions
+WHERE edit_any_songs
+
+UNION ALL
+SELECT
+    user_id,
+    'events.edit'
+FROM legacy.user_permissions
+WHERE edit_events
+
+UNION ALL
+SELECT
+    user_id,
+    'tracklists.edit'
+FROM legacy.user_permissions
+WHERE edit_tracklists
+ON CONFLICT ("UserId", "Permission") DO NOTHING;
 
 
 -- ============================================================
@@ -1128,7 +1150,7 @@ DO $$
 
         SELECT COUNT(*)
         INTO new_count
-        FROM public."AspNetUsers";
+        FROM public.app_user;
 
 
         IF old_count <> new_count THEN

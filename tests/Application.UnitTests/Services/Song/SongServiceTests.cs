@@ -9,9 +9,6 @@ using CuMusicClub.Domain.Entities;
 using CuMusicClub.Domain.Enums;
 using Ardalis.GuardClauses;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
 using Shouldly;
@@ -31,7 +28,7 @@ public class SongServiceTests
     private Mock<IDataEntryRepository> _dataEntries = null!;
     private Mock<IUnitOfWork> _unitOfWork = null!;
     private Mock<ITelegramChatService> _telegram = null!;
-    private Mock<UserManager<ApplicationUser>> _userManager = null!;
+    private Mock<IApplicationUserRepository> _users = null!;
     private SongService _service = null!;
 
     private readonly Guid _userId = Guid.NewGuid();
@@ -47,7 +44,7 @@ public class SongServiceTests
         _dataEntries = new Mock<IDataEntryRepository>();
         _unitOfWork = new Mock<IUnitOfWork>();
         _telegram = new Mock<ITelegramChatService>();
-        _userManager = CreateUserManagerMock();
+        _users = new Mock<IApplicationUserRepository>();
 
         _service = new SongService(_permissions.Object,
             _songs.Object,
@@ -56,22 +53,8 @@ public class SongServiceTests
             _songTopics.Object,
             _dataEntries.Object,
             _unitOfWork.Object,
-            _userManager.Object,
+            _users.Object,
             _telegram.Object);
-    }
-
-    private static Mock<UserManager<ApplicationUser>> CreateUserManagerMock()
-    {
-        return new Mock<UserManager<ApplicationUser>>(
-            Mock.Of<IUserStore<ApplicationUser>>(),
-            Mock.Of<IOptions<IdentityOptions>>(),
-            Mock.Of<IPasswordHasher<ApplicationUser>>(),
-            Array.Empty<IUserValidator<ApplicationUser>>(),
-            Array.Empty<IPasswordValidator<ApplicationUser>>(),
-            Mock.Of<ILookupNormalizer>(),
-            new IdentityErrorDescriber(),
-            Mock.Of<IServiceProvider>(),
-            Mock.Of<ILogger<UserManager<ApplicationUser>>>());
     }
 
     private ClaimsPrincipal Principal()
@@ -91,8 +74,8 @@ public class SongServiceTests
             UserName = "test",
             DisplayName = "Test",
         };
-        _userManager
-            .Setup(u => u.GetUserAsync(It.IsAny<ClaimsPrincipal>()))
+        _users
+            .Setup(u => u.FindByIdAsync(_userId))
             .ReturnsAsync(user);
         _permissions
             .Setup(p => p.GetPermissionValuesAsync(user, It.IsAny<CancellationToken>()))

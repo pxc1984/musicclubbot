@@ -17,9 +17,8 @@ public partial class AuthServiceTests
             UserName = "testuser",
         };
 
-        var result = await scope.UserManager.CreateAsync(user);
-
-        result.Succeeded.ShouldBeTrue(result.Errors.ToString());
+        await scope.Users.AddAsync(user);
+        await scope.Users.SaveChangesAsync();
 
         var returnedUser = await Db()
             .Users.FirstOrDefaultAsync(u => u.TgUserId == user.TgUserId);
@@ -64,9 +63,8 @@ public partial class AuthServiceTests
             UserName = "testuser",
         };
 
-        var result = await scope.UserManager.CreateAsync(user);
-
-        result.Succeeded.ShouldBeTrue(result.Errors.ToString());
+        await scope.Users.AddAsync(user);
+        await scope.Users.SaveChangesAsync();
 
         // проверяем, что пользователь создался на самом деле
         var createdUser = await Db()

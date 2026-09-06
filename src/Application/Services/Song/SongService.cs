@@ -10,7 +10,6 @@ using CuMusicClub.Domain.Entities;
 using CuMusicClub.Domain.ValueObjects;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 
 namespace CuMusicClub.Application.Services.Song;
 
@@ -22,7 +21,7 @@ public partial class SongService(
     ISongTopicRepository songTopics,
     IDataEntryRepository dataEntries,
     IUnitOfWork unitOfWork,
-    UserManager<ApplicationUser> userManager,
+    IApplicationUserRepository users,
     ITelegramChatService telegramChatService) : ISongService
 {
     private const int DefaultPageSize = 20;
@@ -63,7 +62,7 @@ public partial class SongService(
         ClaimsPrincipal currentUser,
         CancellationToken cancellationToken)
     {
-        var user = await userManager.GetUserAsync(currentUser) ?? throw new ForbiddenAccessException();
+        var user = await users.FindByIdAsync(currentUser.GetUserId()) ?? throw new ForbiddenAccessException();
         var permissions = await permissionService.GetPermissionValuesAsync(user, cancellationToken);
         if (!permissions.Contains(Domain.Constants.Permission.ParticipationEditOwn))
             throw new ForbiddenAccessException();
@@ -117,11 +116,11 @@ public partial class SongService(
         var song = await songs.FindByIdWithCreatedByAndTopicAsync(songId, cancellationToken) ??
                    throw new NotFoundException(songId.ToString(), nameof(Domain.Entities.Song));
 
-        var user = await userManager.GetUserAsync(currentUser) ?? throw new ForbiddenAccessException();
+        var user = await users.FindByIdAsync(currentUser.GetUserId()) ?? throw new ForbiddenAccessException();
         var permissions = await permissionService.GetPermissionValuesAsync(user, cancellationToken);
 
         if (song.CreatedBy != null &&
-            user != song.CreatedBy &&
+            user.Id != song.CreatedBy.Id &&
             !permissions.Contains(Domain.Constants.Permission.SongsEditAny))
             throw new ForbiddenAccessException();
 
@@ -175,10 +174,10 @@ public partial class SongService(
         var song = await songs.FindByIdWithCreatedByAsync(songId, cancellationToken) ??
                    throw new NotFoundException(songId.ToString(), nameof(Domain.Entities.Song));
 
-        var user = await userManager.GetUserAsync(currentUser) ?? throw new ForbiddenAccessException();
+        var user = await users.FindByIdAsync(currentUser.GetUserId()) ?? throw new ForbiddenAccessException();
         var permissions = await permissionService.GetPermissionValuesAsync(user, cancellationToken);
         if (song.CreatedBy != null &&
-            user != song.CreatedBy &&
+            user.Id != song.CreatedBy.Id &&
             !permissions.Contains(Domain.Constants.Permission.SongsEditAny))
             throw new ForbiddenAccessException();
 

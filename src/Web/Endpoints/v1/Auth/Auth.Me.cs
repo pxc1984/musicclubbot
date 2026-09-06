@@ -2,9 +2,8 @@ using System.Security.Claims;
 using CuMusicClub.Application.Common.Auth;
 using CuMusicClub.Application.Services.Auth;
 using CuMusicClub.Application.Services.Permission;
-using CuMusicClub.Domain.Entities;
+using CuMusicClub.Domain.Abstractions;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Identity;
 
 namespace CuMusicClub.Web.Endpoints.v1.Auth;
 
@@ -13,10 +12,10 @@ public static partial class Auth
     [EndpointSummary("Get the current user's profile")]
     private static async Task<Results<Ok<UserProfileDto>, NotFound>> Me(ClaimsPrincipal claimsPrincipal,
         IPermissionService permissionService,
-        UserManager<ApplicationUser> userManager,
+        IApplicationUserRepository users,
         CancellationToken cancellationToken)
     {
-        var user = await userManager.GetUserAsync(claimsPrincipal);
+        var user = await users.FindByIdAsync(claimsPrincipal.GetUserId());
         if (user is null) return TypedResults.NotFound();
 
         var profile = new UserProfileDto(user.Id,

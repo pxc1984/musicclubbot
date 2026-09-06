@@ -81,12 +81,6 @@ public class PermissionTests
     }
 
     [Test]
-    public void PermissionClaimType_IsPermission()
-    {
-        PermissionClaimTypes.Permission.ShouldBe("permission");
-    }
-
-    [Test]
     public void AllPermissionStrings_AreUnique()
     {
         var allPermissions = new[]

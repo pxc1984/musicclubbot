@@ -6,7 +6,6 @@ using CuMusicClub.Infrastructure.Data;
 using CuMusicClub.Infrastructure.Data.Interceptors;
 using CuMusicClub.Infrastructure.Data.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -103,16 +102,5 @@ public static class DependencyInjection
             var options = sp.GetRequiredService<IOptions<TelegramOptions>>().Value;
             return new TelegramBotClient(options.BotToken);
         });
-
-        builder
-            .Services
-            .AddIdentityCore<ApplicationUser>(options =>
-            {
-                options.ClaimsIdentity.UserIdClaimType = "sub";
-            })
-            .AddRoles<IdentityRole<Guid>>()
-            .AddEntityFrameworkStores<ApplicationDbContext>()
-            .AddSignInManager()
-            .AddDefaultTokenProviders();
     }
 }

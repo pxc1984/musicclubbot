@@ -1,15 +1,23 @@
 using System.Reflection;
 using CuMusicClub.Domain.Entities;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace CuMusicClub.Infrastructure.Data;
 
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
+public class ApplicationDbContext : DbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
+    }
+
+    public DbSet<ApplicationUser> Users
+    {
+        get { return Set<ApplicationUser>(); }
+    }
+
+    public DbSet<UserPermission> UserPermissions
+    {
+        get { return Set<UserPermission>(); }
     }
 
     public DbSet<Calendar> Calendars
@@ -74,7 +82,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
-        base.OnModelCreating(builder);
         builder.HasPostgresEnum<Domain.Enums.SongLinkType>();
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }

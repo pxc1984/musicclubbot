@@ -4,24 +4,24 @@ namespace CuMusicClub.Application.Services.Permission;
 
 /// <summary>
 /// Central place for reading/writing user permissions.
-/// Permissions always live as individual <c>permission</c> claims on the user
-/// (<c>AspNetUserClaims</c>); roles are only sugar bundles that materialize those claims.
+/// Permissions always live as individual rows in the <c>user_permissions</c> table;
+/// roles are only sugar bundles that materialize those rows.
 /// </summary>
 public interface IPermissionService
 {
     Task<IReadOnlyList<string>> GetPermissionValuesAsync(ApplicationUser user, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Writes the given permission values as individual <c>permission</c> claims on the user
-    /// (idempotent — existing claims are left untouched).
+    /// Writes the given permission values as individual <c>user_permissions</c> rows for the user
+    /// (idempotent — existing permissions are left untouched).
     /// </summary>
     Task GrantPermissionsAsync(ApplicationUser user,
         IEnumerable<string> permissions,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Assigns a role to the user. The role itself is pure sugar: membership is recorded and
-    /// the role's permission bundle is materialized as individual claims on the user.
+    /// Assigns a role to the user. The role itself is pure sugar: its permission bundle is
+    /// materialized as individual <c>user_permissions</c> rows on the user.
     /// </summary>
     Task GrantRoleAsync(ApplicationUser user, string role, CancellationToken cancellationToken);
 

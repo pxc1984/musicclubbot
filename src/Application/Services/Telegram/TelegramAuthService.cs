@@ -8,7 +8,6 @@ using CuMusicClub.Application.Services.Telegram;
 using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,7 +21,6 @@ public class TelegramAuthService(
     ITgAuthLinkRepository tgAuthLinks,
     IApplicationUserRepository users,
     IPermissionService permissionService,
-    UserManager<ApplicationUser> userManager,
     IAuthService authService) : ITelegramAuthService
 {
     private static readonly TimeSpan TokenTtl = TimeSpan.FromHours(1);
@@ -127,9 +125,9 @@ public class TelegramAuthService(
             UserName = tgUser.Username,
             DisplayName = tgUser.FirstName,
         };
-        var result = await userManager.CreateAsync(user);
-        await permissionService.GrantDefaultAsync(user,
-            cancellationToken); // adding db.savecontextasync crashes the program because PK collide
+        await users.AddAsync(user, cancellationToken);
+        await permissionService.GrantDefaultAsync(user, cancellationToken);
+        await users.SaveChangesAsync(cancellationToken);
         return user;
     }
 }

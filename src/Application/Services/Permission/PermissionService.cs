@@ -1,62 +1,31 @@
-using System.Security.Claims;
 using CuMusicClub.Application.Services.Permission;
-using CuMusicClub.Domain.Constants;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
-using Microsoft.AspNetCore.Identity;
 
 namespace CuMusicClub.Application.Services.Permission;
 
-public class PermissionService(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole<Guid>> roleManager)
-    : IPermissionService
+public class PermissionService(IApplicationUserRepository users) : IPermissionService
 {
-    public async Task<IReadOnlyList<string>> GetPermissionValuesAsync(ApplicationUser user,
+    public Task<IReadOnlyList<string>> GetPermissionValuesAsync(ApplicationUser user,
         CancellationToken cancellationToken)
     {
-        var claims = await userManager.GetClaimsAsync(user);
-        return claims
-            .Where(c => c.Type == PermissionClaimTypes.Permission)
-            .Select(c => c.Value)
-            .ToList();
+        return users.GetPermissionsAsync(user.Id, cancellationToken);
     }
 
-    public async Task GrantPermissionsAsync(ApplicationUser user,
+    public Task GrantPermissionsAsync(ApplicationUser user,
         IEnumerable<string> permissions,
         CancellationToken cancellationToken)
     {
-        var existing = await userManager.GetClaimsAsync(user);
-        var existingSet = existing
-            .Where(c => c.Type == PermissionClaimTypes.Permission)
-            .Select(c => c.Value)
-            .ToHashSet(StringComparer.Ordinal);
-
-        foreach (var permission in permissions.Distinct(StringComparer.Ordinal))
-        {
-            if (existingSet.Contains(permission)) continue;
-
-            await userManager.AddClaimAsync(user, new Claim(PermissionClaimTypes.Permission, permission));
-        }
+        return users.GrantPermissionsAsync(user.Id, permissions, cancellationToken);
     }
 
-    public async Task GrantRoleAsync(ApplicationUser user, string role, CancellationToken cancellationToken)
+    public Task GrantRoleAsync(ApplicationUser user, string role, CancellationToken cancellationToken)
     {
-        if (!await roleManager.RoleExistsAsync(role))
-        {
-            var createResult = await roleManager.CreateAsync(new IdentityRole<Guid>(role));
-            if (!createResult.Succeeded)
-                throw new InvalidOperationException($"Failed to create role '{role}': " +
-                                                    string.Join(", ", createResult.Errors.Select(e => e.Description)));
-        }
-
-        if (!await userManager.IsInRoleAsync(user, role))
-        {
-            var addResult = await userManager.AddToRoleAsync(user, role);
-            if (!addResult.Succeeded)
-                throw new InvalidOperationException($"Failed to assign role '{role}' to user '{user.Id}': " +
-                                                    string.Join(", ", addResult.Errors.Select(e => e.Description)));
-        }
-
+        // Роли — чистый «сахар»: сам факт роли не хранится, материализуется лишь её пакет прав.
         if (Domain.Constants.Permission.ByRole.TryGetValue(role, out var bundle))
-            await GrantPermissionsAsync(user, bundle, cancellationToken);
+            return GrantPermissionsAsync(user, bundle, cancellationToken);
+
+        return Task.CompletedTask;
     }
 
     public Task GrantDefaultAsync(ApplicationUser user, CancellationToken cancellationToken)

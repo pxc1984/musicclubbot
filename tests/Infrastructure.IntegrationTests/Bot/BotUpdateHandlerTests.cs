@@ -1,9 +1,9 @@
 using CuMusicClub.Application.Common.Auth;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Infrastructure.IntegrationTests.Infrastructure;
 using CuMusicClub.Domain.Entities;
 using CuMusicClub.Infrastructure.Data;
 using CuMusicClub.Web.Bot;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot.Types;
@@ -76,16 +76,15 @@ public class BotUpdateHandlerTests : TestBase
     private static async Task<ApplicationUser> CreateUserAsync(string displayName = "Test User", long? tgUserId = null)
     {
         using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var users = scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
         var user = new ApplicationUser
         {
             UserName = $"user-{Guid.NewGuid():N}",
             DisplayName = displayName,
             TgUserId = tgUserId,
         };
-        var result = await userManager.CreateAsync(user);
-        if (!result.Succeeded)
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        await users.AddAsync(user);
+        await users.SaveChangesAsync();
 
         return user;
     }

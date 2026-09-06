@@ -1,11 +1,7 @@
 ﻿using System.Data;
-using System.Security.Claims;
-using CuMusicClub.Application.Common.Auth;
-using CuMusicClub.Domain.Constants;
 using CuMusicClub.Domain.Entities;
 using CuMusicClub.Shared;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

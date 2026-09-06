@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CuMusicClub.Application.Common.Auth;
 using CuMusicClub.Application.Common.Exceptions;
 using CuMusicClub.Application.Services.Song;
 using CuMusicClub.Domain.Entities;
@@ -15,7 +16,7 @@ public partial class SongService
     {
         var permissions = await permissionService.GetPermissionValuesAsync(user, cancellationToken);
 
-        var requester = await userManager.GetUserAsync(claimsPrincipal) ?? throw new UnauthorizedAccessException();
+        var requester = await users.FindByIdAsync(claimsPrincipal.GetUserId()) ?? throw new UnauthorizedAccessException();
         var isSelf = requester.Id == user.Id;
         if ((isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditOwn)) ||
             (!isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditAny)))
@@ -51,7 +52,7 @@ public partial class SongService
     {
         var permissions = await permissionService.GetPermissionValuesAsync(user, cancellationToken);
 
-        var requester = await userManager.GetUserAsync(claimsPrincipal) ?? throw new UnauthorizedAccessException();
+        var requester = await users.FindByIdAsync(claimsPrincipal.GetUserId()) ?? throw new UnauthorizedAccessException();
         var isSelf = requester.Id == user.Id;
         if ((isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditOwn)) ||
             (!isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditAny)))

@@ -1,10 +1,8 @@
-using System.Security.Claims;
 using System.Text.RegularExpressions;
 using CuMusicClub.Application.Common.Auth;
 using CuMusicClub.Application.Services.Telegram;
 using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;

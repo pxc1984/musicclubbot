@@ -2,13 +2,12 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using CuMusicClub.Application.Common.Auth;
 using CuMusicClub.Application.Services.DataEntry;
-using CuMusicClub.Application.Services.Permission;
 using CuMusicClub.Application.Services.Song;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Constants;
 using CuMusicClub.Domain.Entities;
 using CuMusicClub.Domain.Enums;
 using CuMusicClub.Infrastructure.Data;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SongEntity = CuMusicClub.Domain.Entities.Song;
@@ -25,14 +24,14 @@ public partial class SongServiceTests : TestBase
 
         public ISongService Songs { get; }
         public IDataEntryService DataEntryService { get; }
-        public UserManager<ApplicationUser> UserManager { get; }
+        public IApplicationUserRepository Users { get; }
 
         public SongScope()
         {
             _scope = FunctionalTestSetup.ScopeFactory.CreateScope();
             Songs = _scope.ServiceProvider.GetRequiredService<ISongService>();
             DataEntryService = _scope.ServiceProvider.GetRequiredService<IDataEntryService>();
-            UserManager = _scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            Users = _scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
         }
 
         public void Dispose()
@@ -55,7 +54,7 @@ public partial class SongServiceTests : TestBase
         bool editFeaturedSongs = false)
     {
         using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var users = scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
 
         var user = new ApplicationUser
         {
@@ -64,20 +63,17 @@ public partial class SongServiceTests : TestBase
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
-        var result = await userManager.CreateAsync(user, "Test1234!");
-        result.Succeeded.ShouldBeTrue(
-            $"Failed to create user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+        await users.AddAsync(user);
 
-        var claims = new List<Claim>();
-        if (editOwnParticipation)
-            claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.ParticipationEditOwn));
-        if (editAnyParticipation)
-            claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.ParticipationEditAny));
-        if (editOwnSongs) claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.SongsEditOwn));
-        if (editAnySongs) claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.SongsEditAny));
-        if (editFeaturedSongs) claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.SongsEditFeatured));
+        var permissions = new List<string>();
+        if (editOwnParticipation) permissions.Add(Permission.ParticipationEditOwn);
+        if (editAnyParticipation) permissions.Add(Permission.ParticipationEditAny);
+        if (editOwnSongs) permissions.Add(Permission.SongsEditOwn);
+        if (editAnySongs) permissions.Add(Permission.SongsEditAny);
+        if (editFeaturedSongs) permissions.Add(Permission.SongsEditFeatured);
 
-        foreach (var claim in claims) await userManager.AddClaimAsync(user, claim);
+        await users.GrantPermissionsAsync(user.Id, permissions);
+        await users.SaveChangesAsync();
 
         var identity = new ClaimsIdentity([
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),

@@ -1,7 +1,7 @@
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Constants;
 using CuMusicClub.Domain.Entities;
 using CuMusicClub.Infrastructure.Data;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CuMusicClub.Infrastructure.IntegrationTests.Infrastructure;
@@ -35,32 +35,25 @@ public static class TestApp
     {
         using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
 
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var users = scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
 
         var user = new ApplicationUser
         {
             UserName = userName,
             Email = userName,
         };
-        var result = await userManager.CreateAsync(user, password);
+        await users.AddAsync(user);
 
-        if (roles.Length > 0)
-        {
-            foreach (var role in roles) await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+        // Роли — «сахар»: материализуем их пакеты прав в user_permissions.
+        var permissions = roles
+            .Where(Permission.ByRole.ContainsKey)
+            .SelectMany(r => Permission.ByRole[r]);
+        await users.GrantPermissionsAsync(user.Id, permissions);
+        await users.SaveChangesAsync();
 
-            await userManager.AddToRolesAsync(user, roles);
-        }
-
-        if (result.Succeeded)
-        {
-            _userId = user.Id.ToString();
-            _roles = [..roles,];
-            return _userId;
-        }
-
-        var errors = string.Join(Environment.NewLine, result.Errors.Select(e => e.Description));
-        throw new Exception($"Unable to create {userName}.{Environment.NewLine}{errors}");
+        _userId = user.Id.ToString();
+        _roles = [..roles,];
+        return _userId;
     }
 
     public static async Task ResetState()

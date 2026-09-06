@@ -1,8 +1,7 @@
-using System.Security.Claims;
 using CuMusicClub.Application.Services.Permission;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Constants;
 using CuMusicClub.Domain.Entities;
-using Microsoft.AspNetCore.Identity;
 using Moq;
 using NUnit.Framework;
 using Shouldly;
@@ -13,48 +12,30 @@ namespace CuMusicClub.Application.UnitTests.Services.Permission;
 [TestOf(typeof(PermissionService))]
 public class PermissionServiceTests
 {
-    private Mock<UserManager<ApplicationUser>> _userManager = null!;
-    private Mock<RoleManager<IdentityRole<Guid>>> _roleManager = null!;
+    private Mock<IApplicationUserRepository> _users = null!;
     private PermissionService _service = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _userManager = new Mock<UserManager<ApplicationUser>>(
-            Mock.Of<IUserStore<ApplicationUser>>(),
-            null!,
-            Mock.Of<IPasswordHasher<ApplicationUser>>(),
-            Array.Empty<IUserValidator<ApplicationUser>>(),
-            Array.Empty<IPasswordValidator<ApplicationUser>>(),
-            Mock.Of<ILookupNormalizer>(),
-            new IdentityErrorDescriber(),
-            Mock.Of<IServiceProvider>(),
-            Mock.Of<Microsoft.Extensions.Logging.ILogger<UserManager<ApplicationUser>>>());
-        _roleManager = new Mock<RoleManager<IdentityRole<Guid>>>(
-            Mock.Of<IRoleStore<IdentityRole<Guid>>>(),
-            Array.Empty<IRoleValidator<IdentityRole<Guid>>>(),
-            Mock.Of<ILookupNormalizer>(),
-            new IdentityErrorDescriber(),
-            Mock.Of<Microsoft.Extensions.Logging.ILogger<RoleManager<IdentityRole<Guid>>>>());
-
-        _service = new PermissionService(_userManager.Object, _roleManager.Object);
+        _users = new Mock<IApplicationUserRepository>();
+        _service = new PermissionService(_users.Object);
     }
 
     private static ApplicationUser User() => new() { Id = Guid.NewGuid(), UserName = "test" };
 
     [Test]
-    public async Task GetPermissionValues_ReturnsOnlyPermissionClaims()
+    public async Task GetPermissionValues_ReturnsPermissionsFromRepository()
     {
         var user = User();
-        var claims = new[]
+        var permissions = new[]
         {
-            new Claim(PermissionClaimTypes.Permission, CuMusicClub.Domain.Constants.Permission.ParticipationEditOwn),
-            new Claim(PermissionClaimTypes.Permission, CuMusicClub.Domain.Constants.Permission.SongsEditOwn),
-            new Claim("other", "value"),
+            CuMusicClub.Domain.Constants.Permission.ParticipationEditOwn,
+            CuMusicClub.Domain.Constants.Permission.SongsEditOwn,
         };
-        _userManager
-            .Setup(u => u.GetClaimsAsync(user))
-            .ReturnsAsync(claims);
+        _users
+            .Setup(u => u.GetPermissionsAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(permissions);
 
         var result = await _service.GetPermissionValuesAsync(user, CancellationToken.None);
 
@@ -64,11 +45,11 @@ public class PermissionServiceTests
     }
 
     [Test]
-    public async Task GetPermissionValues_NoClaims_ReturnsEmpty()
+    public async Task GetPermissionValues_NoPermissions_ReturnsEmpty()
     {
         var user = User();
-        _userManager
-            .Setup(u => u.GetClaimsAsync(user))
+        _users
+            .Setup(u => u.GetPermissionsAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var result = await _service.GetPermissionValuesAsync(user, CancellationToken.None);
@@ -77,90 +58,53 @@ public class PermissionServiceTests
     }
 
     [Test]
-    public async Task GrantDefault_GrantsDefaultBundle()
+    public async Task GrantDefault_CallsRepositoryWithDefaultBundle()
     {
         var user = User();
-        _userManager
-            .Setup(u => u.GetClaimsAsync(user))
-            .ReturnsAsync([]);
 
         await _service.GrantDefaultAsync(user, CancellationToken.None);
 
-        foreach (var permission in CuMusicClub.Domain.Constants.Permission.Default)
-            _userManager.Verify(u => u.AddClaimAsync(user,
-                    It.Is<Claim>(c => c.Type == PermissionClaimTypes.Permission && c.Value == permission)),
-                Times.Once);
-    }
-
-    [Test]
-    public async Task GrantPermissions_IsIdempotent()
-    {
-        var user = User();
-        _userManager
-            .Setup(u => u.GetClaimsAsync(user))
-            .ReturnsAsync([
-                new Claim(PermissionClaimTypes.Permission, CuMusicClub.Domain.Constants.Permission.ParticipationEditOwn),
-            ]);
-
-        await _service.GrantPermissionsAsync(user, CuMusicClub.Domain.Constants.Permission.Default, CancellationToken.None);
-
-        // ParticipationEditOwn уже есть — не должен быть добавлен повторно
-        _userManager.Verify(u => u.AddClaimAsync(user,
-                It.Is<Claim>(c => c.Value == CuMusicClub.Domain.Constants.Permission.ParticipationEditOwn)),
-            Times.Never);
-        // SongsEditOwn добавляется
-        _userManager.Verify(u => u.AddClaimAsync(user,
-                It.Is<Claim>(c => c.Value == CuMusicClub.Domain.Constants.Permission.SongsEditOwn)),
+        _users.Verify(u => u.GrantPermissionsAsync(user.Id,
+                CuMusicClub.Domain.Constants.Permission.Default,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Test]
-    public async Task GrantRole_CreatesRoleIfMissing_AndAssigns()
+    public async Task GrantPermissions_CallsRepository()
     {
         var user = User();
-        _roleManager
-            .Setup(r => r.RoleExistsAsync(Roles.Roadie))
-            .ReturnsAsync(false);
-        _roleManager
-            .Setup(r => r.CreateAsync(It.IsAny<IdentityRole<Guid>>()))
-            .ReturnsAsync(IdentityResult.Success);
-        _userManager
-            .Setup(u => u.IsInRoleAsync(user, Roles.Roadie))
-            .ReturnsAsync(false);
-        _userManager
-            .Setup(u => u.AddToRoleAsync(user, Roles.Roadie))
-            .ReturnsAsync(IdentityResult.Success);
-        _userManager
-            .Setup(u => u.GetClaimsAsync(user))
-            .ReturnsAsync([]);
+        var permissions = new[] { CuMusicClub.Domain.Constants.Permission.SongsEditOwn, };
+
+        await _service.GrantPermissionsAsync(user, permissions, CancellationToken.None);
+
+        _users.Verify(u => u.GrantPermissionsAsync(user.Id, permissions, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
+    public async Task GrantRole_KnownRole_GrantsBundle()
+    {
+        var user = User();
 
         await _service.GrantRoleAsync(user, Roles.Roadie, CancellationToken.None);
 
-        _roleManager.Verify(r => r.CreateAsync(It.IsAny<IdentityRole<Guid>>()), Times.Once);
-        _userManager.Verify(u => u.AddToRoleAsync(user, Roles.Roadie), Times.Once);
-        // Roadie bundle материализуется в claims
-        _userManager.Verify(u => u.AddClaimAsync(user,
-                It.Is<Claim>(c => c.Type == PermissionClaimTypes.Permission && c.Value == CuMusicClub.Domain.Constants.Permission.ParticipationEditAny)),
+        _users.Verify(u => u.GrantPermissionsAsync(user.Id,
+                CuMusicClub.Domain.Constants.Permission.Roadie,
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Test]
-    public async Task GrantRole_ExistingRole_DoesNotRecreate()
+    public async Task GrantRole_UnknownRole_DoesNothing()
     {
         var user = User();
-        _roleManager
-            .Setup(r => r.RoleExistsAsync(Roles.Default))
-            .ReturnsAsync(true);
-        _userManager
-            .Setup(u => u.IsInRoleAsync(user, Roles.Default))
-            .ReturnsAsync(true);
-        _userManager
-            .Setup(u => u.GetClaimsAsync(user))
-            .ReturnsAsync([]);
 
-        await _service.GrantRoleAsync(user, Roles.Default, CancellationToken.None);
+        await _service.GrantRoleAsync(user, "UnknownRole", CancellationToken.None);
 
-        _roleManager.Verify(r => r.CreateAsync(It.IsAny<IdentityRole<Guid>>()), Times.Never);
-        _userManager.Verify(u => u.AddToRoleAsync(user, Roles.Default), Times.Never);
+        _users.Verify(u => u.GrantPermissionsAsync(It.IsAny<Guid>(),
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

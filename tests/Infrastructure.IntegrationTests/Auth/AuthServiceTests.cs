@@ -2,10 +2,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using CuMusicClub.Application.Services.Auth;
 using CuMusicClub.Application.Services.Telegram;
+using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Constants;
 using CuMusicClub.Domain.Entities;
 using CuMusicClub.Infrastructure.Data;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CuMusicClub.Infrastructure.IntegrationTests.Auth;
@@ -16,14 +16,14 @@ public partial class AuthServiceTests : TestBase
     {
         private readonly IServiceScope _scope;
         public IAuthService Auth { get; }
-        public UserManager<ApplicationUser> UserManager { get; }
+        public IApplicationUserRepository Users { get; }
         public ITelegramAuthService TelegramAuth { get; }
 
         public AuthScope()
         {
             _scope = FunctionalTestSetup.ScopeFactory.CreateScope();
             Auth = _scope.ServiceProvider.GetRequiredService<IAuthService>();
-            UserManager = _scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            Users = _scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
             TelegramAuth = _scope.ServiceProvider.GetRequiredService<ITelegramAuthService>();
         }
 
@@ -42,7 +42,7 @@ public partial class AuthServiceTests : TestBase
     private static async Task<(ApplicationUser AppUser, ClaimsPrincipal Principal)> CreateUserAsync(string username)
     {
         using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var users = scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
         var user = new ApplicationUser
         {
             UserName = username,
@@ -50,16 +50,9 @@ public partial class AuthServiceTests : TestBase
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
-        var result = await userManager.CreateAsync(user, "Test1234!");
-        result.Succeeded.ShouldBeTrue(
-            $"Failed to create user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
-
-        var claims = new List<Claim>();
-
-        claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.ParticipationEditOwn));
-        claims.Add(new Claim(PermissionClaimTypes.Permission, Permission.SongsEditOwn));
-
-        foreach (var claim in claims) await userManager.AddClaimAsync(user, claim);
+        await users.AddAsync(user);
+        await users.GrantPermissionsAsync(user.Id, [Permission.ParticipationEditOwn, Permission.SongsEditOwn]);
+        await users.SaveChangesAsync();
 
         var identity = new ClaimsIdentity([
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
