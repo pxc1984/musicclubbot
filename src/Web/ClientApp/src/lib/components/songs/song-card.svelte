@@ -3,13 +3,11 @@
     import {Music, Star} from "@lucide/svelte";
     import type {WithElementRef} from "bits-ui";
     import type {HTMLFormAttributes} from "svelte/elements";
-    import {Label} from "$lib/components/ui/label";
     import {Badge} from "$lib/components/ui/badge";
     import {goto} from "$app/navigation";
     import {resolve} from "$app/paths";
 
     let {
-        ref = $bindable(null),
         class: className,
         songId,
         title,
@@ -19,7 +17,6 @@
         imageUrl = "https://placehold.co/1000x1000",
         filledAssignments = 0,
         totalAssignments = 0,
-        ...restProps
     }: WithElementRef<HTMLFormAttributes> & {
         songId: string,
         title: string,

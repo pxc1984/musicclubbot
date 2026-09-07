@@ -55,21 +55,23 @@
         //    once the user profile is acquired.
         console.log(`isTelegram: ${isTelegram()}`);
         if (!telegramLoginAttempted && isTelegram()) {
+            telegramLoginAttempted = true;
             const initData = retrieveRawInitData();
             console.log(initData);
-            const user = await telegramLogin(initData);
-            telegramLoginAttempted = true;
-            if (currentRun !== guardRun) {
-                return;
-            }
-
-            if (user) {
-                hasBeenAuthenticated = true;
-                checkingAuth = false;
-                if (pathname !== "/") {
-                    await goto(resolve("/"));
+            if (initData) {
+                const user = await telegramLogin(initData);
+                if (currentRun !== guardRun) {
+                    return;
                 }
-                return;
+
+                if (user) {
+                    hasBeenAuthenticated = true;
+                    checkingAuth = false;
+                    if (pathname !== "/") {
+                        await goto(resolve("/"));
+                    }
+                    return;
+                }
             }
         }
 

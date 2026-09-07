@@ -2,11 +2,9 @@ import type { UUID } from "node:crypto";
 
 export type UserProfile = {
     id: UUID;
-    email: string;
-    name?: string;
-    role: "admin" | "guest";
-    emailVerified: boolean;
-    avatarUrl?: string | null;
+    displayName: string;
+    username: string | null;
+    avatarUrl: string | null;
     permissions: string[];
     lastLoginAt?: string | null;
     createdAt: string;

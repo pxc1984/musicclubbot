@@ -33,4 +33,17 @@ public interface ISongService
         ClaimsPrincipal claimsPrincipal,
         Guid roleId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Кандидаты для роли песни: в режиме <c>assign</c> — пользователи, которых текущий
+    /// пользователь может назначить на роль (первым — сам пользователь), в режиме
+    /// <c>remove</c> — участники песни, которых можно снять с ролей. Учитываются права и
+    /// настройки приватности (AllowAdding/AllowRemoving).
+    /// </summary>
+    Task<RoleCandidatesDto> GetRoleCandidatesAsync(Guid songId,
+        Guid roleId,
+        string? query,
+        string? mode,
+        ClaimsPrincipal currentUser,
+        CancellationToken cancellationToken);
 }

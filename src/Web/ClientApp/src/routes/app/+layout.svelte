@@ -1,6 +1,5 @@
 <script lang="ts">
     import BottomNav from "$lib/components/bottom-nav.svelte";
-    import CalendarIcon from "@lucide/svelte/icons/calendar";
     import MusicIcon from "@lucide/svelte/icons/music";
     import UserIcon from "@lucide/svelte/icons/user";
 

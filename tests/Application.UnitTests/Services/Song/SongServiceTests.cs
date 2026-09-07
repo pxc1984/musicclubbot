@@ -20,18 +20,18 @@ namespace CuMusicClub.Application.UnitTests.Services.Song;
 [TestOf(typeof(SongService))]
 public class SongServiceTests
 {
-    private Mock<IPermissionService> _permissions = null!;
-    private Mock<ISongRepository> _songs = null!;
-    private Mock<ISongRoleRepository> _songRoles = null!;
-    private Mock<ISongRoleAssignmentRepository> _songRoleAssignments = null!;
-    private Mock<ISongTopicRepository> _songTopics = null!;
-    private Mock<IDataEntryRepository> _dataEntries = null!;
-    private Mock<IUnitOfWork> _unitOfWork = null!;
-    private Mock<ITelegramChatService> _telegram = null!;
-    private Mock<IApplicationUserRepository> _users = null!;
-    private SongService _service = null!;
+    protected Mock<IPermissionService> _permissions = null!;
+    protected Mock<ISongRepository> _songs = null!;
+    protected Mock<ISongRoleRepository> _songRoles = null!;
+    protected Mock<ISongRoleAssignmentRepository> _songRoleAssignments = null!;
+    protected Mock<ISongTopicRepository> _songTopics = null!;
+    protected Mock<IDataEntryRepository> _dataEntries = null!;
+    protected Mock<IUnitOfWork> _unitOfWork = null!;
+    protected Mock<ITelegramChatService> _telegram = null!;
+    protected Mock<IApplicationUserRepository> _users = null!;
+    protected SongService _service = null!;
 
-    private readonly Guid _userId = Guid.NewGuid();
+    protected readonly Guid _userId = Guid.NewGuid();
 
     [SetUp]
     public void SetUp()
@@ -57,7 +57,7 @@ public class SongServiceTests
             _telegram.Object);
     }
 
-    private ClaimsPrincipal Principal()
+    protected ClaimsPrincipal Principal()
     {
         var claims = new[]
         {
@@ -66,7 +66,7 @@ public class SongServiceTests
         return new ClaimsPrincipal(new ClaimsIdentity(claims));
     }
 
-    private ApplicationUser CurrentUser(params string[] permissions)
+    protected ApplicationUser CurrentUser(params string[] permissions)
     {
         var user = new ApplicationUser
         {

@@ -13,6 +13,7 @@ public static partial class Songs
         group.MapDelete("/{songId:guid}", Delete);
         group.MapPost("/roles/{roleId:guid}/join", Join);
         group.MapPost("/roles/{roleId:guid}/leave", Leave);
+        group.MapGet("/{songId:guid}/roles/{roleId:guid}/candidates", GetCandidates);
     }
 }
 

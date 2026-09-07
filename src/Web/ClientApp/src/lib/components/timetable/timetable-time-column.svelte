@@ -18,7 +18,7 @@
 </script>
 
 <div class="w-16 shrink-0">
-    {#each hours as hour}
+    {#each hours as hour (hour)}
         <div
             class="relative text-right text-xs text-muted-foreground"
             style={`height: ${hourHeight}px`}

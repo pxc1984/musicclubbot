@@ -134,8 +134,8 @@
     const sidebarUser = $derived(
         currentUser
             ? {
-                name: currentUser.name?.trim() || currentUser.email,
-                email: currentUser.email,
+                name: currentUser.displayName?.trim() || currentUser.username || "Пользователь",
+                email: currentUser.username ?? "",
                 avatar: currentUser.avatarUrl ?? undefined,
             }
             : appSidebarData.user,

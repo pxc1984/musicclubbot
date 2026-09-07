@@ -62,6 +62,10 @@ export type RolePayload = {
     actorUserId: UUID;
 };
 
+export type RoleCandidates = {
+    users: SongUser[];
+};
+
 export type ListSongsParams = {
     query?: string;
     pageSize?: number;

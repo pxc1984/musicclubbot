@@ -1,5 +1,6 @@
 <script lang="ts">
     import type {TimetableEvent} from "$lib/timetable/types";
+    import {SvelteDate} from "svelte/reactivity";
 
     import TimetableHeader from "./timetable-header.svelte";
     import TimetableTimeColumn from "./timetable-time-column.svelte";
@@ -19,26 +20,27 @@
         hourHeight?: number;
     } = $props();
 
+    // eslint-disable-next-line svelte/prefer-writable-derived -- локальное изменяемое состояние, синхронизируемое с пропом date
     let selectedDate = $state(new Date());
 
     $effect(() => {
-        selectedDate = new Date(date);
+        selectedDate = new SvelteDate(date);
     });
 
     function previousDay() {
-        const next = new Date(selectedDate);
+        const next = new SvelteDate(selectedDate);
         next.setDate(next.getDate() - 1);
         selectedDate = next;
     }
 
     function nextDay() {
-        const next = new Date(selectedDate);
+        const next = new SvelteDate(selectedDate);
         next.setDate(next.getDate() + 1);
         selectedDate = next;
     }
 
     function today() {
-        selectedDate = new Date();
+        selectedDate = new SvelteDate();
     }
 </script>
 

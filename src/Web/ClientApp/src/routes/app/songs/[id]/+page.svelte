@@ -5,23 +5,37 @@
     import * as Avatar from "$lib/components/ui/avatar";
     import {Separator} from "$lib/components/ui/separator";
     import {Skeleton} from "$lib/components/ui/skeleton";
-    import {getSong, joinSongRole, leaveSongRole} from "$lib/api/songs";
-    import type {Song, SongRole} from "$lib/songs/types";
+    import {getSong, getRoleCandidates} from "$lib/api/songs";
+    import type {Song} from "$lib/songs/types";
     import {getStoredAuthSession} from "$lib/auth/storage";
-    import {ArrowLeft, ExternalLink, Music, Star, User,} from "@lucide/svelte";
+    import {ArrowLeft, ExternalLink, Music, Star,} from "@lucide/svelte";
     import type {UUID} from "node:crypto";
     import EditSong from "$lib/components/songs/edit-song.svelte";
+    import RoleItem from "$lib/components/songs/role-item.svelte";
 
     let song = $state<Song | null>(null);
     let loading = $state(true);
     let error = $state<string | null>(null);
-    let actingRoleId = $state<string | null>(null);
+    let removableUserIds = $state<Set<string>>(new Set());
 
     const songId = $derived(page.params.id as UUID);
     const currentUser = $derived(getStoredAuthSession()?.user ?? null);
 
-    function isCurrentUserAssigned(role: SongRole): boolean {
-        return role.assignment !== null && currentUser !== null && role.assignment.user.id === currentUser.id;
+    async function loadRemovableMembers(song: Song) {
+        const firstRoleId = song.roles[0]?.id;
+        if (!firstRoleId) return;
+
+        try {
+            const result = await getRoleCandidates(
+                song.id,
+                firstRoleId,
+                undefined,
+                "remove",
+            );
+            removableUserIds = new Set(result.users.map((u) => u.id));
+        } catch (err) {
+            console.error(err);
+        }
     }
 
     $effect(() => {
@@ -38,6 +52,7 @@
 
                 if (!cancelled) {
                     song = result;
+                    await loadRemovableMembers(result);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -73,24 +88,6 @@
             month: "long",
             year: "numeric",
         });
-    }
-
-    async function handleRoleClick(role: SongRole) {
-        if (!song || !currentUser || actingRoleId) return;
-
-        actingRoleId = role.id;
-
-        try {
-            if (isCurrentUserAssigned(role)) {
-                song = await leaveSongRole(role.id);
-            } else if (!role.assignment) {
-                song = await joinSongRole(role.id);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            actingRoleId = null;
-        }
     }
 </script>
 
@@ -132,7 +129,7 @@
                 <div>
                     <Skeleton class="h-4 w-24 mb-3"/>
                     <div class="space-y-2">
-                        {#each {length: 3} as _}
+                        {#each [0, 1, 2] as item (item)}
                             <div class="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                                 <div class="flex items-center gap-3">
                                     <Skeleton class="size-8 rounded-full"/>
@@ -217,60 +214,14 @@
                         Роли
                     </h3>
                     <div class="space-y-2">
-                        {#each song.roles as role}
-                            {@const isYou = isCurrentUserAssigned(role)}
-                            {@const isVacant = !role.assignment}
-                            {@const canAct = (isVacant || isYou) && currentUser}
-                            <button
-                                type="button"
-                                class="flex w-full items-center justify-between p-3 rounded-lg bg-muted/50 text-left transition-colors {canAct ? 'hover:bg-muted cursor-pointer' : 'cursor-default'}"
-                                onclick={() => handleRoleClick(role)}
-                                disabled={!canAct || actingRoleId !== null}
-                            >
-                                <span class="flex items-center gap-3">
-                                    {#if role.assignment}
-                                        <Avatar.Root class="size-8">
-                                            <Avatar.Image
-                                                src={role.assignment.user.avatarUrl}
-                                                alt={role.assignment.user.displayName}
-                                            />
-                                            <Avatar.Fallback class="text-xs">
-                                                {getInitials(role.assignment.user.displayName)}
-                                            </Avatar.Fallback>
-                                        </Avatar.Root>
-                                        <div>
-                                            <p class="text-sm font-medium">
-                                                {role.title}
-                                            </p>
-                                            <p class="text-xs text-muted-foreground">
-                                                {role.assignment.user.displayName}
-                                            </p>
-                                        </div>
-                                    {:else}
-                                        <Avatar.Root class="size-8">
-                                            <Avatar.Fallback class="text-xs bg-muted">
-                                                <User class="size-4"/>
-                                            </Avatar.Fallback>
-                                        </Avatar.Root>
-                                        <div>
-                                            <p class="text-sm font-medium">
-                                                {role.title}
-                                            </p>
-                                            <p class="text-xs text-muted-foreground">
-                                                Свободно
-                                            </p>
-                                        </div>
-                                    {/if}
-                                </span>
-
-                                {#if isYou}
-                                    <Badge variant="ghost">нажми чтоб выйти</Badge>
-                                {:else if role.assignment}
-                                    <Badge variant="default">занято</Badge>
-                                {:else}
-                                    <Badge variant="ghost">нажми чтоб зайти</Badge>
-                                {/if}
-                            </button>
+                        {#each song.roles as role (role.id)}
+                            <RoleItem
+                                songId={song.id}
+                                {role}
+                                currentUser={currentUser}
+                                removableUserIds={removableUserIds}
+                                onupdated={(updated) => (song = updated)}
+                            />
                         {/each}
                     </div>
                 </div>

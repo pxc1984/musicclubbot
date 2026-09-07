@@ -53,4 +53,27 @@ public sealed class ApplicationUserRepository(ApplicationDbContext dbContext)
             }, cancellationToken);
         }
     }
+
+    public async Task<IReadOnlyList<ApplicationUser>> GetUsersAsync(string? query,
+        CancellationToken cancellationToken = default)
+    {
+        var users = dbContext.Users.Include(u => u.Preferences).AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var lowered = query.Trim().ToLowerInvariant();
+            users = users.Where(u =>
+                u.DisplayName.ToLower().Contains(lowered) ||
+                (u.UserName != null && u.UserName.ToLower().Contains(lowered)));
+        }
+
+        return await users.OrderBy(u => u.DisplayName).ToListAsync(cancellationToken);
+    }
+
+    public async Task<UserPreferences?> GetPreferencesAsync(Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.UserPreferencesEnumerable
+            .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+    }
 }

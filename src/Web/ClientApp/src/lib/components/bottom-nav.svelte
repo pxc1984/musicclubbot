@@ -26,11 +26,13 @@
 
     async function navigate(href: string, event: MouseEvent): Promise<void> {
         event.preventDefault();
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- href динамический (из пропов), resolve() неприменим
         await goto(href);
     }
 </script>
 
 <nav class={cn("bg-background border-t border-border", className)} aria-label="Main navigation">
+    <!-- eslint-disable svelte/no-navigation-without-resolve -- маршруты динамические (из пропов), resolve() неприменим к runtime-значениям -->
     <ul class="flex items-stretch justify-around">
         {#each items as item (item.href)}
             {@const active = isActive(item.href)}

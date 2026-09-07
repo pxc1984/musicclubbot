@@ -10,6 +10,7 @@
     import {resolve} from "$app/paths";
     import {goto} from "$app/navigation";
     import {categorizePermissions, PermissionCategory} from "$lib/permissions/resolve";
+    import * as Alert from "$lib/components/ui/alert";
 
     let error = $state<string | null>(null);
     let loggingOut = $state(false);
@@ -70,6 +71,11 @@
 </script>
 
 <div class="space-y-8 p-4">
+    {#if error}
+        <Alert.Root variant="destructive">
+            <Alert.Description>{error}</Alert.Description>
+        </Alert.Root>
+    {/if}
     <section class="flex items-start justify-between gap-4">
         <div class="flex min-w-0 items-center gap-4">
             <Avatar class="size-16">

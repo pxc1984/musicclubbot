@@ -11,4 +11,14 @@ public sealed class SongRoleAssignmentRepository(DbContext dbContext)
     {
         await DbSet.Where(s => s.Id == assignmentId).ExecuteDeleteAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Guid>> GetMemberUserIdsBySongIdAsync(Guid songId,
+        CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .Where(a => a.SongId == songId)
+            .Select(a => a.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
 }

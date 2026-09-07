@@ -22,6 +22,13 @@ public partial class SongService
             (!isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditAny)))
             throw new ForbiddenAccessException();
 
+        if (!isSelf)
+        {
+            var prefs = await users.GetPreferencesAsync(user.Id, cancellationToken);
+            if (prefs is { AllowAdding: false })
+                throw new ForbiddenAccessException();
+        }
+
         var role = await songRoles.FindByIdWithSongAndAssignmentAsync(roleId, cancellationToken);
         if (role == null) throw new NotFoundException(roleId.ToString(), nameof(SongRole));
 
@@ -57,6 +64,13 @@ public partial class SongService
         if ((isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditOwn)) ||
             (!isSelf && !permissions.Contains(Domain.Constants.Permission.ParticipationEditAny)))
             throw new ForbiddenAccessException();
+
+        if (!isSelf)
+        {
+            var prefs = await users.GetPreferencesAsync(user.Id, cancellationToken);
+            if (prefs is { AllowRemoving: false })
+                throw new ForbiddenAccessException();
+        }
 
         var role = await songRoles.FindByIdWithSongAndAssignmentAsync(roleId, cancellationToken);
         if (role == null) throw new NotFoundException(roleId.ToString(), nameof(SongRole));

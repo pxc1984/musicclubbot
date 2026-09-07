@@ -37,6 +37,8 @@ public sealed record PermissionsDto(
     bool EditEvents,
     bool EditTracklists);
 
+public sealed record RoleCandidatesDto(IReadOnlyList<SongUserDto> Users);
+
 public sealed record ListSongsResultDto(IReadOnlyList<SongDto> Songs, string? NextPageToken);
 
 public sealed record CreateSongRequest(

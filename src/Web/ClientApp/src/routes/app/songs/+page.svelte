@@ -15,6 +15,8 @@
     import type {Song} from "$lib/songs/types";
     import {page} from "$app/state";
     import {goto} from "$app/navigation";
+    import {resolve} from "$app/paths";
+    import {SvelteSet} from "svelte/reactivity";
     import TextType from "$lib/components/songs/text-type.svelte";
     import * as Dialog from "$lib/components/ui/dialog";
     import CreateSong from "$lib/components/songs/create-song.svelte";
@@ -133,7 +135,8 @@
             }
         }
 
-        goto(`${url.pathname}${url.search}`, {
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- нужен переход на ту же страницу с query-параметрами
+        goto(resolve("/app/songs") + url.search, {
             replaceState: true,
             noScroll: true,
             keepFocus: true
@@ -141,7 +144,7 @@
     }
 
     function toggleRoleTitle(title: string, checked: boolean) {
-        const newSet = new Set(selectedRoleTitles);
+        const newSet = new SvelteSet(selectedRoleTitles);
 
         if (checked) {
             newSet.add(title);
@@ -574,7 +577,7 @@
                 <div
                     class="grid gap-2 max-h-80 overflow-y-auto"
                 >
-                    {#each allRoleTitles as title}
+                    {#each allRoleTitles as title (title)}
                         <label
                             class="flex items-center gap-2 cursor-pointer"
                         >

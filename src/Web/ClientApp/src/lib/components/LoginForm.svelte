@@ -4,14 +4,10 @@
     import {
         FieldGroup,
         Field,
-        FieldLabel,
-        FieldDescription,
-        FieldSeparator,
     } from "$lib/components/ui/field";
     import * as Alert from "$lib/components/ui/alert";
     import {getDeeplink, getApiErrorMessage} from "$lib/api/auth";
     import {setStoredAuthSession} from "$lib/auth/storage";
-    import {Input} from "$lib/components/ui/input";
     import {Button} from "$lib/components/ui/button";
     import {cn, type WithElementRef} from "$lib/utils.js";
     import type {HTMLFormAttributes} from "svelte/elements";

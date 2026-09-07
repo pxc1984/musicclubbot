@@ -4,6 +4,7 @@ import type {
     CreateSongPayload,
     ListSongsParams,
     ListSongsResult,
+    RoleCandidates,
     RolePayload,
     Song,
     UpdateSongPayload,
@@ -64,6 +65,20 @@ export async function leaveSongRole(
     const response = await api.post<Song>(
         `/api/v1/songs/roles/${roleId}/leave`,
         payload,
+    );
+
+    return response.data;
+}
+
+export async function getRoleCandidates(
+    songId: UUID,
+    roleId: UUID,
+    query?: string,
+    mode?: "assign" | "remove",
+): Promise<RoleCandidates> {
+    const response = await api.get<RoleCandidates>(
+        `/api/v1/songs/${songId}/roles/${roleId}/candidates`,
+        { params: { query, mode } },
     );
 
     return response.data;

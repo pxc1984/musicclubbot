@@ -25,7 +25,7 @@
 
 <div class="relative flex-1 border-l">
     <!-- Hour grid -->
-    {#each hours as hour}
+    {#each hours as hour (hour)}
         <div
             class="relative border-b"
             style={`height: ${hourHeight}px`}
