@@ -11,11 +11,15 @@
     import {goto} from "$app/navigation";
     import {categorizePermissions, PermissionCategory} from "$lib/permissions/resolve";
     import * as Alert from "$lib/components/ui/alert";
+    import {Switch} from "$lib/components/ui/switch";
+    import {getPrivacyPreferences, updatePrivacyPreferences, type PrivacyPreferences} from "$lib/api/users";
 
     let error = $state<string | null>(null);
     let loggingOut = $state(false);
     let permissionsOpen = $state(false);
     let detailsOpen = $state(false);
+    let preferences = $state<PrivacyPreferences>({allowAdding: true, allowRemoving: true});
+    let preferencesLoading = $state(true);
 
     let user = $derived($authState.user);
     let permissionCategory = $derived($authState.user ? categorizePermissions($authState.user.permissions) : PermissionCategory.None);
@@ -65,6 +69,33 @@
             error = getApiErrorMessage(err, "Не удалось выйти");
         } finally {
             loggingOut = false;
+        }
+    }
+
+    $effect(() => {
+        let cancelled = false;
+        getPrivacyPreferences()
+            .then((prefs) => {
+                if (!cancelled) preferences = prefs;
+            })
+            .catch((err) => console.error(err))
+            .finally(() => {
+                if (!cancelled) preferencesLoading = false;
+            });
+        return () => {
+            cancelled = true;
+        };
+    });
+
+    async function togglePreference(key: "allowAdding" | "allowRemoving", value: boolean) {
+        const previous = preferences;
+        const next = {...previous, [key]: value};
+        preferences = next;
+        try {
+            preferences = await updatePrivacyPreferences(next);
+        } catch (err) {
+            preferences = previous;
+            error = getApiErrorMessage(err, "Не удалось сохранить настройки приватности");
         }
     }
 
@@ -120,6 +151,42 @@
                 <span class="text-sm font-medium">{permissionCategory} доступы</span>
             </span>
         </Button>
+    </section>
+
+    <Separator />
+
+    <section class="space-y-4">
+        <h2 class="text-sm font-medium text-muted-foreground">
+            Приватность
+        </h2>
+
+        <div class="flex items-center justify-between gap-4">
+            <div class="space-y-0.5">
+                <p class="text-sm font-medium">Разрешить добавлять меня на роли</p>
+                <p class="text-xs text-muted-foreground">
+                    Другие участники смогут назначать вас на роли в песнях без вашего участия
+                </p>
+            </div>
+            <Switch
+                checked={preferences.allowAdding}
+                disabled={preferencesLoading}
+                onCheckedChange={(checked) => togglePreference("allowAdding", checked)}
+            />
+        </div>
+
+        <div class="flex items-center justify-between gap-4">
+            <div class="space-y-0.5">
+                <p class="text-sm font-medium">Разрешить снимать меня с ролей</p>
+                <p class="text-xs text-muted-foreground">
+                    Другие участники смогут убирать вас с ролей в песнях без вашего участия
+                </p>
+            </div>
+            <Switch
+                checked={preferences.allowRemoving}
+                disabled={preferencesLoading}
+                onCheckedChange={(checked) => togglePreference("allowRemoving", checked)}
+            />
+        </div>
     </section>
 
     <Separator />

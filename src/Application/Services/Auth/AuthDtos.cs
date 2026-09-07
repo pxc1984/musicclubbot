@@ -18,6 +18,10 @@ public sealed record UserPreferencesDto(
     bool AllowAdding,
     bool AllowRemoving);
 
+public sealed record UpdateUserPreferencesRequest(
+    bool AllowAdding,
+    bool AllowRemoving);
+
 public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt);
 
 public sealed record AuthSessionDto(

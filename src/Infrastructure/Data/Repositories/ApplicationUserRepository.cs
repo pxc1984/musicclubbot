@@ -76,4 +76,28 @@ public sealed class ApplicationUserRepository(ApplicationDbContext dbContext)
         return await dbContext.UserPreferencesEnumerable
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
     }
+
+    public async Task SetPreferencesAsync(Guid userId,
+        bool allowAdding,
+        bool allowRemoving,
+        CancellationToken cancellationToken = default)
+    {
+        var prefs = await dbContext.UserPreferencesEnumerable
+            .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+
+        if (prefs == null)
+        {
+            prefs = new UserPreferences
+            {
+                UserId = userId,
+                AllowAdding = allowAdding,
+                AllowRemoving = allowRemoving,
+            };
+            await dbContext.UserPreferencesEnumerable.AddAsync(prefs, cancellationToken);
+            return;
+        }
+
+        prefs.AllowAdding = allowAdding;
+        prefs.AllowRemoving = allowRemoving;
+    }
 }

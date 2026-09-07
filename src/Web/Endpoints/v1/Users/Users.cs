@@ -7,5 +7,7 @@ public static partial class Users
         group.RequireAuthorization();
 
         group.MapGet("/{userId:guid}", Get);
+        group.MapGet("/me/preferences", GetPreferences);
+        group.MapPut("/me/preferences", UpdatePreferences);
     }
 }

@@ -27,4 +27,13 @@ public interface IApplicationUserRepository : IRepository<ApplicationUser>
 
     /// <summary>Настройки приватности пользователя (null — настроек нет, трактуется как «разрешено»).</summary>
     Task<UserPreferences?> GetPreferencesAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Сохраняет настройки приватности пользователя (upsert: создаёт строку при отсутствии).
+    /// Не сохраняет изменения; вызов <see cref="IRepository{TEntity}.SaveChangesAsync"/> — обязанность вызывающего.
+    /// </summary>
+    Task SetPreferencesAsync(Guid userId,
+        bool allowAdding,
+        bool allowRemoving,
+        CancellationToken cancellationToken = default);
 }

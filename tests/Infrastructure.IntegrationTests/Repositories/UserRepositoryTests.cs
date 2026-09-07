@@ -55,4 +55,30 @@ public class UserRepositoryTests : TestBase
         filtered.ShouldContain(u => u.UserName == "carol");
         filtered.ShouldNotContain(u => u.UserName == "bob");
     }
+
+    [Test]
+    public async Task SetPreferencesAsync_CreatesWhenMissing_UpdatesWhenPresent()
+    {
+        using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<IApplicationUserRepository>();
+
+        var user = new ApplicationUser { UserName = "dave", DisplayName = "Dave" };
+        await users.AddAsync(user);
+        await users.SaveChangesAsync();
+
+        await users.SetPreferencesAsync(user.Id, allowAdding: false, allowRemoving: false);
+        await users.SaveChangesAsync();
+
+        var prefs = await users.GetPreferencesAsync(user.Id);
+        prefs.ShouldNotBeNull();
+        prefs.AllowAdding.ShouldBeFalse();
+        prefs.AllowRemoving.ShouldBeFalse();
+
+        await users.SetPreferencesAsync(user.Id, allowAdding: true, allowRemoving: true);
+        await users.SaveChangesAsync();
+
+        prefs = await users.GetPreferencesAsync(user.Id);
+        prefs.AllowAdding.ShouldBeTrue();
+        prefs.AllowRemoving.ShouldBeTrue();
+    }
 }
