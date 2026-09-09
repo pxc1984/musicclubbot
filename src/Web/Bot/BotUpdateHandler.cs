@@ -164,26 +164,43 @@ public class BotUpdateHandler(
         }
 
         const string roadieAcceptPrefix = "roadie_accept:";
-        if (callback.Data?.StartsWith(roadieAcceptPrefix, StringComparison.Ordinal) == true
-            && Guid.TryParse(callback.Data[roadieAcceptPrefix.Length..], out var ticketId))
+
+        if (callback.Data?.StartsWith(roadieAcceptPrefix, StringComparison.Ordinal) == true &&
+            Guid.TryParse(callback.Data[roadieAcceptPrefix.Length..], out var ticketId))
         {
             var tgUserId = callback.From?.Id ?? 0;
-            if (tgUserId != 0)
-            {
-                var result = await roadieService.AcceptTicketAsync(tgUserId, ticketId, cancellationToken);
-                var text = result switch
-                {
-                    RoadieAcceptResult.Accepted => "🎸 Вы взяли группу!",
-                    RoadieAcceptResult.NotARoadie => "Вы не роуди.",
-                    RoadieAcceptResult.AlreadyAccepted => "Заявка уже принята.",
-                    _ => "Заявка не найдена.",
-                };
-                await bot.AnswerCallbackQuery(callback.Id, text: text, cancellationToken: cancellationToken);
-            }
-            else
+
+            if (tgUserId == 0)
             {
                 await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
+                return;
             }
+
+            var result = await roadieService.AcceptTicketAsync(tgUserId, ticketId, cancellationToken);
+
+            var text = result switch
+            {
+                RoadieAcceptResult.Accepted => "🎸 Вы взяли группу!",
+                RoadieAcceptResult.NotARoadie => "Вы не роуди.",
+                RoadieAcceptResult.AlreadyAccepted => "Заявка уже принята.",
+                _ => "Заявка не найдена.",
+            };
+
+            await bot.AnswerCallbackQuery(callback.Id, text: text, cancellationToken: cancellationToken);
+
+            if (result == RoadieAcceptResult.Accepted)
+            {
+                var acceptedBy = callback.From?.FirstName ?? "роуди";
+
+                var newMarkup = new InlineKeyboardMarkup(InlineKeyboardButton.WithCallbackData($"✅ Взял {acceptedBy}",
+                    $"roadie_already_accepted:{ticketId}"));
+
+                await bot.EditMessageReplyMarkup(callback.Message.Chat.Id,
+                    callback.Message.MessageId,
+                    replyMarkup: newMarkup,
+                    cancellationToken: cancellationToken);
+            }
+
             return;
         }
 
