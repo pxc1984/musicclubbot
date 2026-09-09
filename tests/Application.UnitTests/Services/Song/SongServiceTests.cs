@@ -8,6 +8,7 @@ using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
 using CuMusicClub.Domain.Enums;
 using Ardalis.GuardClauses;
+using CuMusicClub.Application.Services.Roadie;
 using Microsoft.AspNetCore.Http;
 using Moq;
 using NUnit.Framework;
@@ -29,6 +30,7 @@ public class SongServiceTests
     protected Mock<IUnitOfWork> _unitOfWork = null!;
     protected Mock<ITelegramChatService> _telegram = null!;
     protected Mock<IApplicationUserRepository> _users = null!;
+    protected Mock<IRoadieService> _roadie = null!;
     protected SongService _service = null!;
 
     protected readonly Guid _userId = Guid.NewGuid();
@@ -45,6 +47,7 @@ public class SongServiceTests
         _unitOfWork = new Mock<IUnitOfWork>();
         _telegram = new Mock<ITelegramChatService>();
         _users = new Mock<IApplicationUserRepository>();
+        _roadie = new Mock<IRoadieService>();
 
         _service = new SongService(_permissions.Object,
             _songs.Object,
@@ -54,6 +57,7 @@ public class SongServiceTests
             _dataEntries.Object,
             _unitOfWork.Object,
             _users.Object,
+            _roadie.Object,
             _telegram.Object);
     }
 
