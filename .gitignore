@@ -495,4 +495,5 @@ $RECYCLE.BIN/
 .idea/
 /data/
 
-.env
+.env*
+!.env.example
