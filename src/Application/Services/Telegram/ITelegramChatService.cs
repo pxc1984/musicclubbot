@@ -51,6 +51,7 @@ public interface ITelegramChatService
         string songTitle,
         string artist,
         IEnumerable<SongRole> songRoles,
+        RoadieTicketType ticketType = RoadieTicketType.Assignment,
         CancellationToken cancellationToken = default);
 
     /// <summary>Простое сообщение в чат роуди (без кнопки).</summary>
@@ -58,4 +59,6 @@ public interface ITelegramChatService
 
     /// <summary>Личное сообщение пользователю по его Telegram id.</summary>
     Task SendDirectMessage(long tgUserId, string message, CancellationToken cancellationToken = default);
+
+    string BuildUserMention(ApplicationUser user);
 }

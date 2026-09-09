@@ -6,6 +6,7 @@ using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
+using Telegram.Bot.Requests;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -106,34 +107,30 @@ public class TelegramChatService(
         string songTitle,
         string artist,
         IEnumerable<SongRole> songRoles,
+        RoadieTicketType roadieTicketType = RoadieTicketType.Assignment,
         CancellationToken cancellationToken = default)
     {
         var members = string.Join("\n",
             songRoles
                 .Where(x => x.Assignment?.User != null)
-                .Select(x =>
-                {
-                    var user = x.Assignment!.User;
+                .Select(x => $"{WebUtility.HtmlEncode(x.RoleTitle)} — {BuildUserMention(x.Assignment!.User)}"));
 
-                    string userTag;
-
-                    if (!string.IsNullOrWhiteSpace(user.UserName))
-                        userTag = $"@{WebUtility.HtmlEncode(user.UserName)}";
-                    else if (user.TgUserId.HasValue)
-                        userTag = $"<a href=\"tg://user?id={user.TgUserId.Value}\">" +
-                                  $"{WebUtility.HtmlEncode(user.DisplayName)}" +
-                                  $"</a>";
-                    else
-                        userTag = WebUtility.HtmlEncode(user.DisplayName);
-
-                    return $"{WebUtility.HtmlEncode(x.RoleTitle)} — {userTag}";
-                }));
-
-        var message = $"🎸 Группе «{WebUtility.HtmlEncode(songTitle)} — {WebUtility.HtmlEncode(artist)}» " +
-                      $"нужна помощь роуди.\n\n" +
-                      $"👥 Состав группы:\n" +
-                      $"{members}\n\n" +
-                      $"Нажмите «Взять группу», если придёте.";
+        var message = roadieTicketType switch
+        {
+            RoadieTicketType.Assignment =>
+                $"🎸 Группе «{WebUtility.HtmlEncode(songTitle)} — {WebUtility.HtmlEncode(artist)}» " +
+                $"нужен постоянный роуди!\n\n" +
+                $"👥 Состав группы:\n" +
+                $"{members}\n\n" +
+                $"Нажмите «Взять группу», если придёте.",
+            RoadieTicketType.Help =>
+                $"🎸 Группе «{WebUtility.HtmlEncode(songTitle)} — {WebUtility.HtmlEncode(artist)}» " +
+                $"нужна помощь роуди на разок.\n\n" +
+                $"👥 Состав группы:\n" +
+                $"{members}\n\n" +
+                $"Нажмите «Взять группу», если придёте.",
+            _ => throw new ArgumentOutOfRangeException()
+        };
 
         var replyMarkup = new InlineKeyboardMarkup(
             InlineKeyboardButton.WithCallbackData("Взять группу", $"roadie_accept:{ticketId}"));
@@ -156,5 +153,21 @@ public class TelegramChatService(
             message,
             parseMode: ParseMode.Html,
             cancellationToken: cancellationToken);
+    }
+
+    public string BuildUserMention(ApplicationUser user)
+    {
+        string userTag;
+
+        if (!string.IsNullOrWhiteSpace(user.UserName))
+            userTag = $"@{WebUtility.HtmlEncode(user.UserName)}";
+        else if (user.TgUserId.HasValue)
+            userTag = $"<a href=\"tg://user?id={user.TgUserId.Value}\">" +
+                      $"{WebUtility.HtmlEncode(user.DisplayName)}" +
+                      $"</a>";
+        else
+            userTag = WebUtility.HtmlEncode(user.DisplayName);
+
+        return userTag;
     }
 }

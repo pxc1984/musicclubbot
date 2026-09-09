@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CuMusicClub.Application.Common.Auth;
 using CuMusicClub.Application.Common.Exceptions;
 using CuMusicClub.Application.Services.Permission;
+using CuMusicClub.Application.Services.Roadie;
 using CuMusicClub.Application.Services.Song;
 using CuMusicClub.Application.Services.Song.Helpers;
 using CuMusicClub.Application.Services.Telegram;
@@ -22,6 +23,7 @@ public partial class SongService(
     IDataEntryRepository dataEntries,
     IUnitOfWork unitOfWork,
     IApplicationUserRepository users,
+    IRoadieService roadieService,
     ITelegramChatService telegramChatService) : ISongService
 {
     private const int DefaultPageSize = 20;

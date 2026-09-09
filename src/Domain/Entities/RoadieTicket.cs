@@ -1,5 +1,11 @@
 namespace CuMusicClub.Domain.Entities;
 
+public enum RoadieTicketType
+{
+    Assignment,
+    Help,
+}
+
 /// <summary>
 /// Заявка группы (песни) на помощь роуди. Таблица <c>roadie_ticket</c>.
 /// Статус через nullable-поля (не enum): <c>AcceptedById == null</c> ⇔ заявка открыта.
@@ -13,6 +19,7 @@ public class RoadieTicket
     public ApplicationUser CreatedBy { get; set; } = null!;
     public Guid? AcceptedById { get; set; }       // кто взял (роуди)
     public ApplicationUser? AcceptedBy { get; set; }
+    public RoadieTicketType RoadieTicketType { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
 }

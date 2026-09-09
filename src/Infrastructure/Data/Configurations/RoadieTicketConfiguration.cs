@@ -30,6 +30,10 @@ public class RoadieTicketConfiguration : IEntityTypeConfiguration<RoadieTicket>
             .HasColumnName("accepted_by");
 
         builder
+            .Property(t => t.RoadieTicketType)
+            .HasColumnName("ticket_type")
+            .HasDefaultValue(RoadieTicketType.Assignment);
+        builder
             .Property(t => t.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("NOW()");
@@ -55,12 +59,6 @@ public class RoadieTicketConfiguration : IEntityTypeConfiguration<RoadieTicket>
         builder
             .HasIndex(t => t.SongId)
             .HasDatabaseName("idx_roadie_ticket_song_id");
-        // Гарантия «одна открытая заявка на песню» на уровне БД (защита от гонки).
-        builder
-            .HasIndex(t => t.SongId)
-            .IsUnique()
-            .HasFilter("\"accepted_by\" IS NULL")
-            .HasDatabaseName("uq_roadie_ticket_open_song");
         builder
             .HasIndex(t => t.AcceptedById)
             .HasDatabaseName("idx_roadie_ticket_accepted_by");

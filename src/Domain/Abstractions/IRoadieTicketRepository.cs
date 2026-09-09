@@ -12,7 +12,7 @@ public interface IRoadieTicketRepository : IRepository<RoadieTicket>
     Task<RoadieTicket?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Есть ли открытая (<c>AcceptedById == null</c>) заявка для песни.</summary>
-    Task<bool> HasOpenTicketAsync(Guid songId, CancellationToken ct = default);
+    Task<bool> HasOpenTicketAsync(Guid songId, RoadieTicketType ticketType = RoadieTicketType.Assignment, CancellationToken ct = default);
 
     /// <summary>
     /// Открытые заявки, созданные раньше <paramref name="olderThan"/>

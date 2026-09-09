@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CuMusicClub.Application.Common.Auth;
+using CuMusicClub.Application.Common.Options;
 using CuMusicClub.Application.Services.Roadie;
 using CuMusicClub.Application.Services.Telegram;
 using CuMusicClub.Domain.Abstractions;
@@ -7,6 +8,7 @@ using CuMusicClub.Domain.Entities;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace CuMusicClub.Web.Bot;
@@ -14,7 +16,11 @@ namespace CuMusicClub.Web.Bot;
 public class BotUpdateHandler(
     ITgAuthLinkRepository tgAuthLinks,
     ITelegramAuthService tgAuthService,
+    ITelegramChatService telegramChatService,
     IRoadieService roadieService,
+    ISongTopicRepository songTopicRepository,
+    ISongRepository songRepository,
+    IOptions<TelegramOptions> telegramOptions,
     ILogger<BotUpdateHandler> logger)
 {
     private static readonly Regex CommandRegex = new(
@@ -73,6 +79,15 @@ public class BotUpdateHandler(
                         await HandleStartAsync(bot, message, user, webAppUrl, cancellationToken);
 
                     return;
+
+                case "roadie":
+                    await HandleRoadiePingAsync(bot, message, user, cancellationToken);
+                    return;
+
+                case "ping":
+                    await HandlePingAsync(bot, message, user, cancellationToken);
+                    return;
+
                 case "help":
                     await SendTextAsync(bot,
                         message.Chat,
@@ -80,6 +95,80 @@ public class BotUpdateHandler(
                         cancellationToken);
                     return;
             }
+    }
+
+    private async Task HandlePingAsync(ITelegramBotClient bot,
+        Message message,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        var chatId = message.Chat.Id;
+        var isTopicMessage = message.IsTopicMessage;
+        var isDirectMessage = message.Chat.IsDirectMessages;
+        var topicId = message.MessageThreadId;
+        if (!isTopicMessage ||
+            !isDirectMessage ||
+            topicId == null ||
+            chatId != long.Parse(telegramOptions.Value.ChatId))
+            return;
+
+        var topic = await songTopicRepository.FindByTopicIdAsync((long) topicId, cancellationToken);
+        if (topic == null) return;
+
+        var song = await songRepository.FindByIdWithDetailsAsync(topic.SongId, cancellationToken);
+        if (song == null) return;
+
+        if (message.Text == null) return;
+
+        var userMessage = message.Text["/ping".Length..];
+        var text = message.Text.StartsWith("/ping", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(userMessage)
+            ? userMessage
+                .TrimStart()
+            : $"<a href=\"tg://user?id={user.Id}\">{user.Username}</a> вызывает музыкантов!";
+
+        text = song
+            .Roles.Where(x => x.Assignment?.User.TgUserId != null)
+            .Select(x => x.Assignment!.User)
+            .DistinctBy(x => x.TgUserId)
+            .Aggregate(text, (current, userToMention) => current + $"<a href=\"tg://user?id={userToMention.TgUserId}\">\u2060</a>");
+
+        await bot.SendMessage(message.Chat.Id,
+            text,
+            messageThreadId: (int) topicId,
+            parseMode: ParseMode.Html,
+            cancellationToken: cancellationToken);
+    }
+
+
+    private async Task HandleRoadiePingAsync(ITelegramBotClient bot,
+        Message message,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        if (message.Text == null) return;
+
+        var userMessage = message.Text["/roadie".Length..];
+        var text = message.Text.StartsWith("/roadie", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(userMessage)
+            ? userMessage
+                .TrimStart()
+            : $"<a href=\"tg://user?id={user.Id}\">{user.Username}</a> вызывает роуди!";
+
+        var roadies = await roadieService.ListRoadies(cancellationToken);
+        var pingCount = 0;
+
+        text = roadies.Aggregate(text, (current, userToMention) =>
+        {
+            pingCount++;
+            return current + $"<a href=\"tg://user?id={userToMention.TgUserId}\">\u2060</a>";
+        });
+
+        text += $"\n\nБыло вызвано {pingCount} роуди";
+
+        await bot.SendMessage(message.Chat.Id,
+            text,
+            messageThreadId: message.MessageThreadId,
+            parseMode: ParseMode.Html,
+            cancellationToken: cancellationToken);
     }
 
     private async Task HandleStartAsync(ITelegramBotClient bot,

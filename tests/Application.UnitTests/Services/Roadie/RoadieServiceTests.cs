@@ -122,7 +122,7 @@ public class RoadieServiceTests
                 .Setup(r => r.FindByIdWithDetailsAsync(song.Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(song);
             _tickets
-                .Setup(r => r.HasOpenTicketAsync(song.Id, It.IsAny<CancellationToken>()))
+                .Setup(r => r.HasOpenTicketAsync(song.Id, It.IsAny<RoadieTicketType>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
             var topic = new SongTopic { Song = song, SongId = song.Id, TopicId = 111 };
             _songTopics
@@ -132,7 +132,7 @@ public class RoadieServiceTests
                 .Setup(t => t.SendTopicMessage(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
             _telegram
-                .Setup(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<SongRole>>(), It.IsAny<CancellationToken>()))
+                .Setup(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<SongRole>>(), It.IsAny<RoadieTicketType>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
 
             RoadieTicket? added = null;
@@ -141,14 +141,14 @@ public class RoadieServiceTests
                 .Callback<RoadieTicket, CancellationToken>((t, _) => added = t)
                 .Returns(Task.CompletedTask);
 
-            var result = await _service.CreateTicketAsync(song.Id, Principal(), CancellationToken.None);
+            var result = await _service.CreateTicketAsync(song.Id, Principal(), RoadieTicketType.Help, CancellationToken.None);
 
             added.ShouldNotBeNull();
             added!.SongId.ShouldBe(song.Id);
             added.CreatedById.ShouldBe(_userId);
             result.Id.ShouldBe(added.Id);
             result.IsOpen.ShouldBeTrue();
-            _telegram.Verify(t => t.SendRoadieTicketNotification(added.Id, song.Title, song.Artist, It.IsAny<IEnumerable<SongRole>>(), It.IsAny<CancellationToken>()),
+            _telegram.Verify(t => t.SendRoadieTicketNotification(added.Id, song.Title, song.Artist, It.IsAny<IEnumerable<SongRole>>(), It.IsAny<RoadieTicketType>(), It.IsAny<CancellationToken>()),
                 Times.Once);
             _telegram.Verify(t => t.SendTopicMessage(111, It.IsAny<string>(), It.IsAny<CancellationToken>()),
                 Times.Once);
@@ -164,7 +164,7 @@ public class RoadieServiceTests
                 .ReturnsAsync(song);
 
             await Should.ThrowAsync<ForbiddenAccessException>(() =>
-                _service.CreateTicketAsync(song.Id, Principal(), CancellationToken.None));
+                _service.CreateTicketAsync(song.Id, Principal(), RoadieTicketType.Help, CancellationToken.None));
 
             _tickets.Verify(r => r.AddAsync(It.IsAny<RoadieTicket>(), It.IsAny<CancellationToken>()), Times.Never);
         }
@@ -179,18 +179,18 @@ public class RoadieServiceTests
                 .ReturnsAsync(song);
             var existing = OpenTicket(song.Id);
             _tickets
-                .Setup(r => r.HasOpenTicketAsync(song.Id, It.IsAny<CancellationToken>()))
+                .Setup(r => r.HasOpenTicketAsync(song.Id, It.IsAny<RoadieTicketType>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
             _tickets
                 .Setup(r => r.Query())
                 .Returns(new[] { existing, }.AsQueryable());
 
-            var result = await _service.CreateTicketAsync(song.Id, Principal(), CancellationToken.None);
+            var result = await _service.CreateTicketAsync(song.Id, Principal(), RoadieTicketType.Help, CancellationToken.None);
 
             result.Id.ShouldBe(existing.Id);
             result.IsOpen.ShouldBeTrue();
             _tickets.Verify(r => r.AddAsync(It.IsAny<RoadieTicket>(), It.IsAny<CancellationToken>()), Times.Never);
-            _telegram.Verify(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<SongRole>>(), It.IsAny<CancellationToken>()),
+            _telegram.Verify(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<SongRole>>(), It.IsAny<RoadieTicketType>(), It.IsAny<CancellationToken>()),
                 Times.Never);
             _telegram.Verify(t => t.SendTopicMessage(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
                 Times.Never);

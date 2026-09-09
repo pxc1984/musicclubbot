@@ -22,6 +22,7 @@ public class RoadieService(
 
     public async Task<RoadieTicketDto> CreateTicketAsync(Guid songId,
         ClaimsPrincipal currentUser,
+        RoadieTicketType ticketType,
         CancellationToken cancellationToken = default)
     {
         var song = await songs.FindByIdWithDetailsAsync(songId, cancellationToken)
@@ -37,10 +38,10 @@ public class RoadieService(
             throw new ForbiddenAccessException();
 
         // Дубль открытой заявки — возвращаем существующую, без повторных уведомлений.
-        if (await tickets.HasOpenTicketAsync(songId, cancellationToken))
+        if (await tickets.HasOpenTicketAsync(songId, ticketType: RoadieTicketType.Help, ct: cancellationToken))
         {
             var existing = tickets.Query()
-                .FirstOrDefault(t => t.SongId == songId && t.AcceptedById == null);
+                .FirstOrDefault(t => t.SongId == songId && t.AcceptedById == null && t.RoadieTicketType == RoadieTicketType.Help);
             if (existing is not null)
                 return ToDto(existing, song);
         }
@@ -49,6 +50,7 @@ public class RoadieService(
         {
             Id = Guid.NewGuid(),
             SongId = songId,
+            RoadieTicketType = RoadieTicketType.Help,
             CreatedById = requesterId,
             CreatedAt = DateTimeOffset.UtcNow,
         };
@@ -60,7 +62,7 @@ public class RoadieService(
             await telegram.SendTopicMessage(topic.TopicId,
                 $"🔎 Группе «{WebUtility.HtmlEncode(song.Title)}» сейчас ищется роуди.", cancellationToken);
 
-        await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, song.Roles, cancellationToken);
+        await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, song.Roles, RoadieTicketType.Help, cancellationToken);
 
         return ToDto(ticket, song);
     }
@@ -98,9 +100,21 @@ public class RoadieService(
         await tickets.SaveChangesAsync(cancellationToken);
 
         var topic = await songTopics.FindBySongIdAsync(ticket.SongId, cancellationToken);
-        if (topic is not null)
-            await telegram.SendTopicMessage(topic.TopicId,
-                $"🎸 Ваш роуди — {WebUtility.HtmlEncode(user.DisplayName)}.", cancellationToken);
+        if (topic is null) return RoadieAcceptResult.Accepted;
+
+        switch (ticket.RoadieTicketType)
+        {
+            case RoadieTicketType.Assignment:
+                await telegram.SendTopicMessage(topic.TopicId,
+                    $"🎸 Ваш постоянный роуди — {telegram.BuildUserMention(user)}.", cancellationToken);
+                break;
+            case RoadieTicketType.Help:
+                await telegram.SendTopicMessage(topic.TopicId,
+                    $"🎸 По вашему запросу был выдан временный роуди — {telegram.BuildUserMention(user)}.", cancellationToken);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
 
         return RoadieAcceptResult.Accepted;
     }
@@ -168,6 +182,11 @@ public class RoadieService(
 
         await tickets.SaveChangesAsync(cancellationToken);
         return count;
+    }
+
+    public async Task<IEnumerable<ApplicationUser>> ListRoadies(CancellationToken cancellationToken = default)
+    {
+        return await users.GetUsersByPermissionAsync(CuMusicClub.Domain.Constants.Permission.RoadieManage, cancellationToken);
     }
 
     private static RoadieTicketDto ToDto(RoadieTicket ticket, CuMusicClub.Domain.Entities.Song song)

@@ -13,9 +13,17 @@ public sealed class RoadieBackfillHostedService(
 {
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        try { await RunAsync(cancellationToken); }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception ex) { logger.LogError(ex, "Roadie backfill failed"); }
+        try
+        {
+            await RunAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Roadie backfill failed");
+        }
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -42,13 +50,17 @@ public sealed class RoadieBackfillHostedService(
 
             var song = await songs.FindByIdWithDetailsAsync(songId, cancellationToken);
             if (song is null) continue;
-            if (song.CreatedById is not Guid createdById) continue;
+            if (song.CreatedById is not
+                {
+                } createdById)
+                continue;
 
             // Открытая заявка от имени создателя песни (системный бекфилл: «собранная» песня нуждается в роуди).
             var ticket = new RoadieTicket
             {
                 Id = Guid.NewGuid(),
                 SongId = song.Id,
+                RoadieTicketType = RoadieTicketType.Assignment,
                 CreatedById = createdById,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
@@ -57,7 +69,12 @@ public sealed class RoadieBackfillHostedService(
             created++;
 
             if (sendNotifications)
-                await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, song.Roles, cancellationToken);
+                await telegram.SendRoadieTicketNotification(ticket.Id,
+                    song.Title,
+                    song.Artist,
+                    song.Roles,
+                    RoadieTicketType.Assignment,
+                    cancellationToken);
         }
 
         await tickets.SaveChangesAsync(cancellationToken);

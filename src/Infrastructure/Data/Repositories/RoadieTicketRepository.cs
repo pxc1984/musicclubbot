@@ -16,9 +16,11 @@ public sealed class RoadieTicketRepository(DbContext dbContext)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    public async Task<bool> HasOpenTicketAsync(Guid songId, CancellationToken ct = default)
+    public async Task<bool> HasOpenTicketAsync(Guid songId,
+        RoadieTicketType ticketType = RoadieTicketType.Assignment,
+        CancellationToken ct = default)
     {
-        return await DbSet.AnyAsync(t => t.SongId == songId && t.AcceptedById == null, ct);
+        return await DbSet.AnyAsync(t => t.SongId == songId && t.AcceptedById == null && t.RoadieTicketType == ticketType, ct);
     }
 
     public async Task<IReadOnlyList<RoadieTicket>> GetOpenTicketsOlderThanAsync(
