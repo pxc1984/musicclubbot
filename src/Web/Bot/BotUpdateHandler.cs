@@ -107,7 +107,7 @@ public class BotUpdateHandler(
         var isDirectMessage = message.Chat.IsDirectMessages;
         var topicId = message.MessageThreadId;
         if (!isTopicMessage ||
-            !isDirectMessage ||
+            isDirectMessage ||
             topicId == null ||
             chatId != long.Parse(telegramOptions.Value.ChatId))
             return;
