@@ -43,4 +43,15 @@ public interface ITelegramChatService
     /// <param name="message">Текст сообщения</param>
     /// <param name="cancellationToken">Токен отмены</param>
     Task SendGeneralMessage(string message, CancellationToken cancellationToken = default);
+
+    /// <summary>Уведомление в чат роуди с inline-кнопкой «Взять группу».
+    /// callback-данные кнопки: "roadie_accept:{ticketId}".</summary>
+    Task SendRoadieTicketNotification(Guid ticketId, string songTitle, string artist,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Простое сообщение в чат роуди (без кнопки).</summary>
+    Task SendRoadieMessage(string message, CancellationToken cancellationToken = default);
+
+    /// <summary>Личное сообщение пользователю по его Telegram id.</summary>
+    Task SendDirectMessage(long tgUserId, string message, CancellationToken cancellationToken = default);
 }

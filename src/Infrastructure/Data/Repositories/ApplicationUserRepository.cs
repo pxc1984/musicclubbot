@@ -54,6 +54,18 @@ public sealed class ApplicationUserRepository(ApplicationDbContext dbContext)
         }
     }
 
+    public async Task<IReadOnlyList<ApplicationUser>> GetUsersByPermissionAsync(string permission,
+        CancellationToken cancellationToken = default)
+    {
+        var permissionUserIds = dbContext.UserPermissions
+            .Where(up => up.Permission == permission)
+            .Select(up => up.UserId);
+
+        return await dbContext.Users
+            .Where(u => permissionUserIds.Contains(u.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ApplicationUser>> GetUsersAsync(string? query,
         CancellationToken cancellationToken = default)
     {

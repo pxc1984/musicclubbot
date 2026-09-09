@@ -5,7 +5,7 @@
     import * as Avatar from "$lib/components/ui/avatar";
     import {Separator} from "$lib/components/ui/separator";
     import {Skeleton} from "$lib/components/ui/skeleton";
-    import {getSong, getRoleCandidates} from "$lib/api/songs";
+    import {getSong, getRoleCandidates, callRoadie} from "$lib/api/songs";
     import type {Song} from "$lib/songs/types";
     import {getStoredAuthSession} from "$lib/auth/storage";
     import {ArrowLeft, ExternalLink, Music, Star,} from "@lucide/svelte";
@@ -17,6 +17,9 @@
     let loading = $state(true);
     let error = $state<string | null>(null);
     let removableUserIds = $state<Set<string>>(new Set());
+    let callingRoadie = $state(false);
+    let roadieRequested = $state(false);
+    let roadieError = $state<string | null>(null);
 
     const songId = $derived(page.params.id as UUID);
     const currentUser = $derived(getStoredAuthSession()?.user ?? null);
@@ -88,6 +91,21 @@
             month: "long",
             year: "numeric",
         });
+    }
+
+    async function requestRoadie() {
+        if (!song || callingRoadie) return;
+        callingRoadie = true;
+        roadieError = null;
+        try {
+            await callRoadie(song.id);
+            roadieRequested = true;
+        } catch (err) {
+            roadieError = "Не удалось вызвать роуди. Попробуйте позже.";
+            console.error(err);
+        } finally {
+            callingRoadie = false;
+        }
     }
 </script>
 
@@ -198,14 +216,31 @@
                     </p>
                 {/if}
 
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onclick={() => song && window.open(song.url, "_blank")}
-                >
-                    <ExternalLink class="size-4 mr-2"/>
-                    Открыть ссылку
-                </Button>
+                <div class="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onclick={() => song && window.open(song.url, "_blank")}
+                    >
+                        <ExternalLink class="size-4 mr-2"/>
+                        Открыть ссылку
+                    </Button>
+
+                    {#if currentUser}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onclick={requestRoadie}
+                            disabled={callingRoadie || roadieRequested}
+                        >
+                            {roadieRequested ? "Роуди вызван" : callingRoadie ? "Вызываем..." : "Вызвать роуди"}
+                        </Button>
+                    {/if}
+                </div>
+
+                {#if roadieError}
+                    <p class="text-sm text-destructive">{roadieError}</p>
+                {/if}
 
                 <Separator/>
 

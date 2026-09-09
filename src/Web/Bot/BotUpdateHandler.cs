@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CuMusicClub.Application.Common.Auth;
+using CuMusicClub.Application.Services.Roadie;
 using CuMusicClub.Application.Services.Telegram;
 using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
@@ -13,6 +14,7 @@ namespace CuMusicClub.Web.Bot;
 public class BotUpdateHandler(
     ITgAuthLinkRepository tgAuthLinks,
     ITelegramAuthService tgAuthService,
+    IRoadieService roadieService,
     ILogger<BotUpdateHandler> logger)
 {
     private static readonly Regex CommandRegex = new(
@@ -160,7 +162,32 @@ public class BotUpdateHandler(
             await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
             return;
         }
-        // kinda do nothing?
+
+        const string roadieAcceptPrefix = "roadie_accept:";
+        if (callback.Data?.StartsWith(roadieAcceptPrefix, StringComparison.Ordinal) == true
+            && Guid.TryParse(callback.Data[roadieAcceptPrefix.Length..], out var ticketId))
+        {
+            var tgUserId = callback.From?.Id ?? 0;
+            if (tgUserId != 0)
+            {
+                var result = await roadieService.AcceptTicketAsync(tgUserId, ticketId, cancellationToken);
+                var text = result switch
+                {
+                    RoadieAcceptResult.Accepted => "🎸 Вы взяли группу!",
+                    RoadieAcceptResult.NotARoadie => "Вы не роуди.",
+                    RoadieAcceptResult.AlreadyAccepted => "Заявка уже принята.",
+                    _ => "Заявка не найдена.",
+                };
+                await bot.AnswerCallbackQuery(callback.Id, text: text, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
+            }
+            return;
+        }
+
+        await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
     }
 
     private static string NormalizeNamePart(string value)

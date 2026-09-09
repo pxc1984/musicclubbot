@@ -25,6 +25,10 @@ public interface IApplicationUserRepository : IRepository<ApplicationUser>
     /// <summary>Все пользователи (с настройками приватности), опционально с фильтром по имени/username.</summary>
     Task<IReadOnlyList<ApplicationUser>> GetUsersAsync(string? query, CancellationToken cancellationToken = default);
 
+    /// <summary>Пользователи, у которых в <c>user_permissions</c> есть ровно это право.</summary>
+    Task<IReadOnlyList<ApplicationUser>> GetUsersByPermissionAsync(string permission,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Настройки приватности пользователя (null — настроек нет, трактуется как «разрешено»).</summary>
     Task<UserPreferences?> GetPreferencesAsync(Guid userId, CancellationToken cancellationToken = default);
 

@@ -26,17 +26,19 @@ public partial class SongService
 
         foreach (var songRole in toRemove)
         {
-            await new SongServiceTopics(telegramChatService).AnnounceRoleRemovedAsync(song.SongTopic!.TopicId,
-                songRole.RoleTitle,
-                songRole.Assignment?.User,
-                cancellationToken);
+            if (song.SongTopic != null)
+                await new SongServiceTopics(telegramChatService).AnnounceRoleRemovedAsync(song.SongTopic.TopicId,
+                    songRole.RoleTitle,
+                    songRole.Assignment?.User,
+                    cancellationToken);
         }
 
         foreach (var role in toAdd)
         {
-            await new SongServiceTopics(telegramChatService).AnnounceRoleAddedAsync(song.SongTopic!.TopicId,
-                role,
-                cancellationToken);
+            if (song.SongTopic != null)
+                await new SongServiceTopics(telegramChatService).AnnounceRoleAddedAsync(song.SongTopic.TopicId,
+                    role,
+                    cancellationToken);
 
             await songRoles.AddAsync(new SongRole
             {

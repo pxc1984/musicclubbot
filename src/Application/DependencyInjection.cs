@@ -2,6 +2,7 @@
 using CuMusicClub.Application.Services.Auth;
 using CuMusicClub.Application.Services.DataEntry;
 using CuMusicClub.Application.Services.Permission;
+using CuMusicClub.Application.Services.Roadie;
 using CuMusicClub.Application.Services.Song;
 using CuMusicClub.Application.Services.Telegram;
 using FluentValidation;
@@ -21,5 +22,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<IPermissionService, PermissionService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IDataEntryService, DataEntryService>();
+        builder.Services.AddScoped<IRoadieService, RoadieService>();
     }
 }

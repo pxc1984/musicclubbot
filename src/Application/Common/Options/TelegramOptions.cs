@@ -7,6 +7,7 @@ public class TelegramOptions
     public string BotToken { get; set; } = string.Empty;
     public string BotUsername { get; set; } = string.Empty;
     public string ChatId { get; set; } = string.Empty;
+    public string RoadieChatId { get; set; } = string.Empty;
     /// <summary>
     /// после этого будет добавляться /data/{id}
     /// </summary>

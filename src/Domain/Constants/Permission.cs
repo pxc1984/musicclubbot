@@ -9,10 +9,12 @@ public static class Permission
     public const string SongsEditFeatured = "songs.edit_featured";
     public const string EventsEdit = "events.edit";
     public const string TracklistsEdit = "tracklists.edit";
+    public const string RoadieManage = "roadie.manage";
 
     public static readonly IReadOnlyList<string> Default = [ParticipationEditOwn, SongsEditOwn,];
 
-    public static readonly IReadOnlyList<string> Roadie = [ParticipationEditOwn, ParticipationEditAny, SongsEditOwn,];
+    public static readonly IReadOnlyList<string> Roadie =
+        [ParticipationEditOwn, ParticipationEditAny, SongsEditOwn, RoadieManage,];
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -23,6 +25,7 @@ public static class Permission
         SongsEditFeatured,
         EventsEdit,
         TracklistsEdit,
+        RoadieManage,
     ];
 
     /// <summary>

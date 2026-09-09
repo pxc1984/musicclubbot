@@ -47,7 +47,6 @@ public class AuthService(
             LastActivityAt = now,
             ScreenResolution = headers?["X-Screen-Resolution"].FirstOrDefault(),
             UserId = user.Id,
-            User = user,
             UserAgent = headers?.UserAgent.ToString(),
             RefreshTokenJti = refreshTokenObj.Jti,
             RefreshToken = refreshTokenObj,

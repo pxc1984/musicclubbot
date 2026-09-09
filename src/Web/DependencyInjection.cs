@@ -30,5 +30,7 @@ public static class DependencyInjection
         builder.Services.AddHttpClient();
         builder.Services.AddHostedService<ThumbnailBackfillHostedService>();
         builder.Services.AddHostedService<PermissionsBackfillHostedService>();
+        builder.Services.AddHostedService<RoadieBackfillHostedService>();
+        builder.Services.AddHostedService<RoadieAutoAssignHostedService>();
     }
 }

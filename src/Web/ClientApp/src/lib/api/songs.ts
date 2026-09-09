@@ -46,6 +46,10 @@ export async function deleteSong(songId: UUID): Promise<void> {
     await api.delete(`/api/v1/songs/${songId}`);
 }
 
+export async function callRoadie(songId: UUID): Promise<void> {
+    await api.post(`/api/v1/songs/${songId}/roadie-ticket`);
+}
+
 export async function joinSongRole(
     roleId: UUID,
     payload?: RolePayload,
