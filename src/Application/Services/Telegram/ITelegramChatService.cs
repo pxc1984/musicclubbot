@@ -1,3 +1,4 @@
+using CuMusicClub.Application.Services.Song;
 using CuMusicClub.Domain.Entities;
 
 namespace CuMusicClub.Application.Services.Telegram;
@@ -46,7 +47,10 @@ public interface ITelegramChatService
 
     /// <summary>Уведомление в чат роуди с inline-кнопкой «Взять группу».
     /// callback-данные кнопки: "roadie_accept:{ticketId}".</summary>
-    Task SendRoadieTicketNotification(Guid ticketId, string songTitle, string artist,
+    Task SendRoadieTicketNotification(Guid ticketId,
+        string songTitle,
+        string artist,
+        IEnumerable<SongRole> songRoles,
         CancellationToken cancellationToken = default);
 
     /// <summary>Простое сообщение в чат роуди (без кнопки).</summary>

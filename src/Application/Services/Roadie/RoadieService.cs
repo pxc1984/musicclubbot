@@ -60,7 +60,7 @@ public class RoadieService(
             await telegram.SendTopicMessage(topic.TopicId,
                 $"🔎 Группе «{WebUtility.HtmlEncode(song.Title)}» сейчас ищется роуди.", cancellationToken);
 
-        await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, cancellationToken);
+        await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, song.Roles, cancellationToken);
 
         return ToDto(ticket, song);
     }

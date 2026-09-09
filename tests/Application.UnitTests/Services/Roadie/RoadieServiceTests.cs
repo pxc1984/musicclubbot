@@ -132,7 +132,7 @@ public class RoadieServiceTests
                 .Setup(t => t.SendTopicMessage(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
             _telegram
-                .Setup(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .Setup(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<SongRole>>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
 
             RoadieTicket? added = null;
@@ -148,7 +148,7 @@ public class RoadieServiceTests
             added.CreatedById.ShouldBe(_userId);
             result.Id.ShouldBe(added.Id);
             result.IsOpen.ShouldBeTrue();
-            _telegram.Verify(t => t.SendRoadieTicketNotification(added.Id, song.Title, song.Artist, It.IsAny<CancellationToken>()),
+            _telegram.Verify(t => t.SendRoadieTicketNotification(added.Id, song.Title, song.Artist, It.IsAny<IEnumerable<SongRole>>(), It.IsAny<CancellationToken>()),
                 Times.Once);
             _telegram.Verify(t => t.SendTopicMessage(111, It.IsAny<string>(), It.IsAny<CancellationToken>()),
                 Times.Once);
@@ -190,7 +190,7 @@ public class RoadieServiceTests
             result.Id.ShouldBe(existing.Id);
             result.IsOpen.ShouldBeTrue();
             _tickets.Verify(r => r.AddAsync(It.IsAny<RoadieTicket>(), It.IsAny<CancellationToken>()), Times.Never);
-            _telegram.Verify(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            _telegram.Verify(t => t.SendRoadieTicketNotification(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<SongRole>>(), It.IsAny<CancellationToken>()),
                 Times.Never);
             _telegram.Verify(t => t.SendTopicMessage(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
                 Times.Never);

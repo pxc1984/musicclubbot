@@ -1,5 +1,6 @@
 using System.Net;
 using CuMusicClub.Application.Common.Options;
+using CuMusicClub.Application.Services.Song;
 using CuMusicClub.Application.Services.Telegram;
 using CuMusicClub.Domain.Abstractions;
 using CuMusicClub.Domain.Entities;
@@ -18,6 +19,7 @@ public class TelegramChatService(
     ISongTopicRepository songTopics) : ITelegramChatService
 {
     private readonly long _chatId = long.Parse(telegramOptions.Value.ChatId);
+
     private readonly long _roadieChatId = string.IsNullOrEmpty(telegramOptions.Value.RoadieChatId)
         ? long.Parse(telegramOptions.Value.ChatId)
         : long.Parse(telegramOptions.Value.RoadieChatId);
@@ -56,8 +58,8 @@ public class TelegramChatService(
 
     public async Task DeleteTopic(long topicId, CancellationToken cancellationToken = default)
     {
-        await bot.CloseForumTopic(_chatId, (int)topicId, cancellationToken: cancellationToken);
-        await bot.DeleteForumTopic(_chatId, (int)topicId, cancellationToken: cancellationToken);
+        await bot.CloseForumTopic(_chatId, (int) topicId, cancellationToken: cancellationToken);
+        await bot.DeleteForumTopic(_chatId, (int) topicId, cancellationToken: cancellationToken);
 
         var topic = await GetTopic(topicId, cancellationToken);
         songTopics.Remove(topic);
@@ -66,7 +68,11 @@ public class TelegramChatService(
 
     public async Task SendTopicMessage(long topicId, string message, CancellationToken cancellationToken = default)
     {
-        await bot.SendMessage(_chatId, message, parseMode: ParseMode.Html, messageThreadId: (int)topicId, cancellationToken: cancellationToken);
+        await bot.SendMessage(_chatId,
+            message,
+            parseMode: ParseMode.Html,
+            messageThreadId: (int) topicId,
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -99,12 +105,39 @@ public class TelegramChatService(
     public async Task SendRoadieTicketNotification(Guid ticketId,
         string songTitle,
         string artist,
+        IEnumerable<SongRole> songRoles,
         CancellationToken cancellationToken = default)
     {
-        var message =
-            $"🎸 Группе «{WebUtility.HtmlEncode(songTitle)} — {WebUtility.HtmlEncode(artist)}» нужна помощь роуди. Нажмите „Взять группу“, если придёте.";
+        var members = string.Join("\n",
+            songRoles
+                .Where(x => x.Assignment?.User != null)
+                .Select(x =>
+                {
+                    var user = x.Assignment!.User;
+
+                    string userTag;
+
+                    if (!string.IsNullOrWhiteSpace(user.UserName))
+                        userTag = $"@{WebUtility.HtmlEncode(user.UserName)}";
+                    else if (user.TgUserId.HasValue)
+                        userTag = $"<a href=\"tg://user?id={user.TgUserId.Value}\">" +
+                                  $"{WebUtility.HtmlEncode(user.DisplayName)}" +
+                                  $"</a>";
+                    else
+                        userTag = WebUtility.HtmlEncode(user.DisplayName);
+
+                    return $"{WebUtility.HtmlEncode(x.RoleTitle)} — {userTag}";
+                }));
+
+        var message = $"🎸 Группе «{WebUtility.HtmlEncode(songTitle)} — {WebUtility.HtmlEncode(artist)}» " +
+                      $"нужна помощь роуди.\n\n" +
+                      $"👥 Состав группы:\n" +
+                      $"{members}\n\n" +
+                      $"Нажмите «Взять группу», если придёте.";
+
         var replyMarkup = new InlineKeyboardMarkup(
             InlineKeyboardButton.WithCallbackData("Взять группу", $"roadie_accept:{ticketId}"));
+
         await bot.SendMessage(_roadieChatId,
             message,
             parseMode: ParseMode.Html,
@@ -119,6 +152,9 @@ public class TelegramChatService(
 
     public async Task SendDirectMessage(long tgUserId, string message, CancellationToken cancellationToken = default)
     {
-        await bot.SendMessage(new ChatId(tgUserId), message, parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+        await bot.SendMessage(new ChatId(tgUserId),
+            message,
+            parseMode: ParseMode.Html,
+            cancellationToken: cancellationToken);
     }
 }

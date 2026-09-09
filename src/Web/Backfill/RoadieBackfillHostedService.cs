@@ -40,7 +40,7 @@ public sealed class RoadieBackfillHostedService(
         {
             if (cancellationToken.IsCancellationRequested) break;
 
-            var song = await songs.FindByIdAsync(songId);
+            var song = await songs.FindByIdWithDetailsAsync(songId, cancellationToken);
             if (song is null) continue;
             if (song.CreatedById is not Guid createdById) continue;
 
@@ -57,7 +57,7 @@ public sealed class RoadieBackfillHostedService(
             created++;
 
             if (sendNotifications)
-                await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, cancellationToken);
+                await telegram.SendRoadieTicketNotification(ticket.Id, song.Title, song.Artist, song.Roles, cancellationToken);
         }
 
         await tickets.SaveChangesAsync(cancellationToken);
